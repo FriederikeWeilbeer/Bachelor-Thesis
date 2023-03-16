@@ -3,7 +3,7 @@ import cv2
 import glob
 
 # Wait time to show calibration in 'ms'
-WAIT_TIME = 100
+WAIT_TIME = 400
 
 # termination criteria for iterative algorithm
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -32,7 +32,7 @@ for fname in images:
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
     # Find the chess board corners
-    ret, corners = cv2.findChessboardCornersSB(gray, (cbrow, cbcol), None)
+    ret, corners = cv2.findChessboardCorners(gray, (cbrow, cbcol), None)
 
     # If found, add object points, image points (after refining them)
     if ret:
