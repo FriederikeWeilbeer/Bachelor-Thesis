@@ -42,7 +42,7 @@ for fname in images:
         imgpoints.append(corners2)
 
         # Draw and display the corners
-        img = cv2.drawChessboardCorners(img, (cbrow,cbcol), corners2, ret)
+        img = cv2.drawChessboardCorners(img, (cbrow, cbcol), corners2, ret)
         cv2.imshow('img', img)
         cv2.waitKey(WAIT_TIME)
 

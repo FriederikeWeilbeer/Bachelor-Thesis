@@ -5,6 +5,8 @@ import numpy as np
 
 cap = cv2.VideoCapture(0)
 
+
+
 # ---------------------- CALIBRATION ---------------------------
 # termination criteria for the iterative algorithm
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -52,6 +54,7 @@ ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.sh
 while True:
     # Capture frame by frame
     ret, frame = cap.read()
+
     # if the frame is read correctly ret is True
     if not ret:
         print("Can't receive frame. Exiting ...")
@@ -71,7 +74,7 @@ while True:
 
     # check if the ids list is not empty
     # if no check is added the code will crash
-    if np.all(ids != None):
+    if np.all(ids is not None):
         # estimate pose of each marker and return the values
         # Display the resulting frame
         rvec, tvec, _ = aruco.estimatePoseSingleMarkers(corners, 0.07, mtx, dist)  # 0.07 is the marker length
@@ -88,11 +91,11 @@ while True:
         for i in range(0, ids.size):
             strg += str(ids[i][0]) + ', '
 
-        cv2.putText(frame, "Id: " + strg, (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(frame, "Id: " + strg, (0, 64), font, 1, (25, 51, 0), 2, cv2.LINE_AA)
 
     else:
         # code to show 'No Ids' when no markers are found
-        cv2.putText(frame, "No Ids", (0, 64), font, 1, (0, 255, 0), 2, cv2.LINE_AA)
+        cv2.putText(frame, "No Ids", (0, 64), font, 1, (25, 51, 0), 2, cv2.LINE_AA)
 
     # display the resulting frame
     cv2.imshow('frame', frame)
