@@ -13,7 +13,7 @@ criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 cbrow = 6
 cbcol = 9
 # square size [m]
-square_size = 0.015
+square_size = 0.022
 
 # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
 # create empty chessboard matrix
@@ -37,6 +37,7 @@ for fname in images:
     # If found, add object points, image points (after refining them)
     if ret:
         objpoints.append(objp)
+        print(fname)
 
         corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
         imgpoints.append(corners2)
