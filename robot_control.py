@@ -2,6 +2,7 @@
 import cv2
 import cv2.aruco as aruco
 import zmq
+import KeyPressModule as kp
 
 DEBUG = False
 
@@ -24,7 +25,6 @@ def findArucoMarkers(img, arucoDict, arucoParam):
     # draw boxes around detected markers
     aruco.drawDetectedMarkers(img, corners)
     return corners, ids
-
 
 # keyboard listener
 def keyboardListener():
@@ -55,7 +55,6 @@ def sendPosition(corners, ids):
         if DEBUG:
             print("No markers found.")
 
-# calculate a point with the same orientation as the leader but a distance of 1m
 
 
 def main():

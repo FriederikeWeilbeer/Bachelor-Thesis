@@ -11,7 +11,8 @@ def setUpZMQ():
     port = "5556"
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    socket.connect("tcp://192.168.0.132:%s" % port)
+    socket.connect("tcp://141.83.32.248:%s" % port)
+    socket.subscribe("14")
     socket.subscribe("42")
     socket.subscribe(platform.node().replace("CP", ""))
 
