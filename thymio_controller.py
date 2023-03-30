@@ -1,0 +1,141 @@
+# import required packages
+import time
+import sys
+import zmq
+import multiprocessing
+from thymiodirect import Connection
+from thymiodirect import Thymio
+
+port = 46171
+resolved = []
+
+# set up zmq
+def setUpZMQ():
+    port = "5556"
+    if len(sys.argv) > 1:
+        port =  sys.argv[1]
+        int(port)
+    
+    if len(sys.argv) > 2:
+        port1 =  sys.argv[2]
+        int(port1)
+
+    # Socket to talk to server
+    global socket
+    context = zmq.Context()
+    socket = context.socket(zmq.SUB)
+    socket.connect ("tcp://localhost:%s" % port)
+
+    if len(sys.argv) > 2:
+        socket.connect ("tcp://localhost:%s" % port1)
+
+    socket.setsockopt_string(zmq.SUBSCRIBE, '42')           # all robots
+    socket.setsockopt_string(zmq.SUBSCRIBE, '0')            # leader
+
+# Robot controller
+def stop_robot(robot):
+    """Set both wheel robot_speeds to 0 to stop the robot"""
+    robot['motor.left.target'] = 0
+    robot['motor.right.target'] = 0 
+
+def set_robot_speed(robot, left_robot_speed, right_robot_speed):
+    """Set both wheel robot_speeds to the given values"""
+    robot['motor.left.target'] = left_robot_speed
+    robot['motor.right.target'] = right_robot_speed
+
+
+def main(use_sim=False, ip='localhost', port=0):
+    """main loop of the program"""
+    try:
+        # Configure Interface to Thymio robot
+        if use_sim:                         
+            th = Thymio(use_tcp=True, host=ip, tcp_port=port, 
+                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+        else:                       
+            port = Connection.serial_default_port()
+            th = Thymio(serial_port=port, 
+                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+
+        # Robot Connection setup
+        global robot
+        th.connect()                        # Connect to the robot
+        robot = th[th.first_node()]         # Create an object to control the robot
+        print("%s connected" % robot)       # Print the robot name
+        time.sleep(5)                       # Delay to allow robot initialization of all variables
+
+        # ZMQ setup
+        setUpZMQ()
+
+        # Initialize variables
+        robot_state = 'off'             # State of the robot (on/off)
+        robot_action = 'stop'           # Action of the robot
+        robot_action_cur = ''           # Current action of the robot
+        robot_speed = 350               # Max speed of the robot
+
+        print('ready')
+
+        # Main loop
+        while True:
+                        
+            # Receive and handle the message from the ZMQ server
+            try:
+                topic, data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
+                print(data)
+
+                if topic == '42':                       # Handle the message for all robots
+                    robot_state = data
+                elif topic == str(th.first_node()):     # Handle the message for this robot
+                    robot_action = data
+                    print(robot_action)
+                        
+            except zmq.Again as error:
+                pass
+            
+            # Handle the robot state ans set the action
+            if robot_state == 'off':    
+                robot_action = 'stop'
+                
+
+            # Handle the robot action
+            if robot_action == 'straight' and robot_action_cur != 'straight':
+                robot_action_cur = 'straight'
+                set_robot_speed(robot, robot_speed, robot_speed)
+            elif robot_action == 'back' and robot_action_cur != 'back': 
+                robot_action_cur = 'back'
+                set_robot_speed(robot, -robot_speed, -robot_speed)
+            elif robot_action == 'stop' and robot_action_cur != 'stop':
+                robot_action_cur = 'stop'
+                stop_robot(robot)
+            elif robot_action == 'left' and robot_action_cur != 'left':
+                robot_action_cur = 'left'
+                set_robot_speed(robot, int(robot_speed/4), robot_speed)
+            elif robot_action == 'right' and robot_action_cur != 'right':
+                robot_action_cur = 'right'
+                set_robot_speed(robot, robot_speed, int(robot_speed/4))
+
+
+    except Exception as err:
+        # Stop robot
+        stop_robot(robot)
+        print(err)
+    except KeyboardInterrupt:
+        # Stop robot
+        stop_robot(robot)
+        print('Keyboard Interrupt')
+
+
+if __name__=='__main__':
+    print("Starting processes...")
+
+    # spawn process for each robot
+    processes = []
+    #for port in ports:
+    processes.append(multiprocessing.Process(target=main, args=(True, "localhost", port,)))
+    
+    # start processes
+    for p in processes:
+        p.start()
+
+    # wait for processes to finish
+    for p in processes:
+        p.join()
