@@ -2,63 +2,50 @@ import zmq
 import pygame
 import sys
 
-def init():
-    pygame.init()
-    win = pygame.display.set_mode((100,100))
 
+class PygameController:
+    def __init__(self, width=100, height=100, port=5556):
+        pygame.init()
+        self.screen = pygame.display.set_mode((width, height))
+        self.context = zmq.Context()
+        self.socket = self.context.socket(zmq.PUB)
+        self.socket.bind("tcp://*:%s" % port)
 
-# set up zmq publisher
-def setUpPub():
-    global socket
-    port = "5556"
-    if len(sys.argv) > 1:
-        port =  sys.argv[1]
-        int(port)
+    def run(self):
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
 
-    context = zmq.Context()
-    socket = context.socket(zmq.PUB)
-    socket.bind("tcp://*:%s" % port)
-
-def main():
-    setUpPub()
-    while True:
-        for eve in pygame.event.get():
-            if eve.type == pygame.KEYDOWN:
-                key=pygame.key.name(eve.key)
-                if key == "left":
-                    topic = 0
-                    message = "left"
-                    socket.send_string("%d %s" % (topic, message))
-                elif key == "right":
-                    topic = 0
-                    message = "right"
-                    socket.send_string("%d %s" % (topic, message))
-                elif key == "up":
-                    topic = 0
-                    message = "straight"
-                    socket.send_string("%d %s" % (topic, message))
-                elif key == "down":
-                    topic = 0
-                    message = "back"
-                    socket.send_string("%d %s" % (topic, message))
-                elif key == "s":
-                    topic = 42
-                    message = "on"
-                    socket.send_string("%d %s" % (topic, message))
-                elif key == "q":
-                    topic = 42
-                    message = "off"
-                    socket.send_string("%d %s" % (topic, message))
-                    break
-            if eve.type == pygame.KEYUP:
-                key=pygame.key.name(eve.key)
-                topic = 0
+            keys = pygame.key.get_pressed()
+            topic = 0
+            if keys[pygame.K_s]:
+                topic = 42
+                message = "on"
+            # when 'q' or esc is hit, quit the program
+            elif keys[pygame.K_q] or keys[pygame.K_ESCAPE]:
+                topic = 42
+                message = "off"
+            elif keys[pygame.K_UP] and keys[pygame.K_LEFT]:
+                message = "left"
+            elif keys[pygame.K_UP] and keys[pygame.K_RIGHT]:
+                message = "right"
+            elif keys[pygame.K_UP]:
+                message = "straight"
+            elif keys[pygame.K_LEFT]:
+                message = "spotleft"
+            elif keys[pygame.K_RIGHT]:
+                message = "spotright"
+            elif keys[pygame.K_DOWN]:
+                message = "back"
+            else:
                 message = "stop"
-                socket.send_string("%d %s" % (topic, message))
-    
 
-# driver function
+            self.socket.send_string("%d %s" % (topic, message))
+            pygame.display.update()
+
+
 if __name__ == "__main__":
-    init()
-    main()
-    
+    controller = PygameController()
+    controller.run()

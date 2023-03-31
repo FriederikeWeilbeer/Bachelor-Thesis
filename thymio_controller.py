@@ -6,31 +6,21 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 46171
-resolved = []
+port = 33861
 
 # set up zmq
 def setUpZMQ():
-    port = "5556"
-    if len(sys.argv) > 1:
-        port =  sys.argv[1]
-        int(port)
-    
-    if len(sys.argv) > 2:
-        port1 =  sys.argv[2]
-        int(port1)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else "5556"
 
     # Socket to talk to server
     global socket
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    socket.connect ("tcp://localhost:%s" % port)
-
-    if len(sys.argv) > 2:
-        socket.connect ("tcp://localhost:%s" % port1)
+    socket.connect(f"tcp://localhost:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')           # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '0')            # leader
+
 
 # Robot controller
 def stop_robot(robot):
@@ -60,7 +50,7 @@ def main(use_sim=False, ip='localhost', port=0):
         global robot
         th.connect()                        # Connect to the robot
         robot = th[th.first_node()]         # Create an object to control the robot
-        print("%s connected" % robot)       # Print the robot name
+        print(f"{robot} connected")         # Print the robot name
         time.sleep(5)                       # Delay to allow robot initialization of all variables
 
         # ZMQ setup
@@ -96,24 +86,26 @@ def main(use_sim=False, ip='localhost', port=0):
                 robot_action = 'stop'
                 
 
+            # Create a dictionary to map actions to function calls
+            action_map = {
+                'straight': lambda: set_robot_speed(robot, robot_speed, robot_speed),
+                'back': lambda: set_robot_speed(robot, -robot_speed, -robot_speed),
+                'stop': lambda: stop_robot(robot),
+                'left': lambda: set_robot_speed(robot, int(robot_speed/4), robot_speed),
+                'right': lambda: set_robot_speed(robot, robot_speed, int(robot_speed/4)),
+                'spotleft': lambda: set_robot_speed(robot, -robot_speed, robot_speed),
+                'spotright': lambda: set_robot_speed(robot, robot_speed, -robot_speed),
+}
+
             # Handle the robot action
-            if robot_action == 'straight' and robot_action_cur != 'straight':
-                robot_action_cur = 'straight'
-                set_robot_speed(robot, robot_speed, robot_speed)
-            elif robot_action == 'back' and robot_action_cur != 'back': 
-                robot_action_cur = 'back'
-                set_robot_speed(robot, -robot_speed, -robot_speed)
-            elif robot_action == 'stop' and robot_action_cur != 'stop':
-                robot_action_cur = 'stop'
-                stop_robot(robot)
-            elif robot_action == 'left' and robot_action_cur != 'left':
-                robot_action_cur = 'left'
-                set_robot_speed(robot, int(robot_speed/4), robot_speed)
-            elif robot_action == 'right' and robot_action_cur != 'right':
-                robot_action_cur = 'right'
-                set_robot_speed(robot, robot_speed, int(robot_speed/4))
+            if robot_action != robot_action_cur:
+                robot_action_cur = robot_action
+                action_map.get(robot_action, lambda: None)()
 
 
+
+    except ConnectionError:
+        print("Connection Error")
     except Exception as err:
         # Stop robot
         stop_robot(robot)
