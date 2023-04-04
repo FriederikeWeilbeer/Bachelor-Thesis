@@ -1,7 +1,6 @@
 import zmq
 import pygame
 import sys
-import mss
 
 
 class PygameController:
@@ -45,7 +44,6 @@ class PygameController:
 
             self.socket.send_string("%d %s" % (topic, message))
             pygame.display.update()
-
 
 
 if __name__ == "__main__":

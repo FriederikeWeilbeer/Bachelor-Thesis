@@ -7,7 +7,7 @@
 
 
 	<!--Definition of the world, width (w) and height (h) in cm (origin in a corner). Can also have a color (defined above) and ground texture (PNG image). The PNG image will be stretched to the world's size. Attribute energyScoringSystemEnabled defines whether the energy of the e-pucks will be counted.-->
-	<world w="150" h="150" groundTexture="arena-3000x3000.png" energyScoringSystemEnabled="false"/>
+	<world w="150" h="150" groundTexture="background.png" energyScoringSystemEnabled="false"/>
 
 	<!--The position of the camera can be defined by its x,y and altitude in cm, yaw, pitch in radians.-->
 	<camera x="50" y="50" altitude="150" yaw=" 1.57" pitch="-1.56" />
