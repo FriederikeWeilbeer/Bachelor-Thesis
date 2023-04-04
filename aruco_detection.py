@@ -19,7 +19,7 @@ def findArucoMarkers(img):
     return corners, ids
 
 
-def getPosition(id):
+def getArucoInfo(id):
     with mss.mss() as sct:
         monitor_number = 2
         mon = sct.monitors[monitor_number]
@@ -35,11 +35,13 @@ def getPosition(id):
             img = np.array(sct.grab(monitor))
             corners, ids = findArucoMarkers(img)
 
+            markers = []
             for i in range(len(ids)):
                 if ids[i][0] == id:
-                    corner_1 = (str(corners[i][0][0][0]), str(corners[i][0][0][1]))
-                    corner_2 = (str(corners[i][0][1][0]), str(corners[i][0][1][1]))
-                    corner_3 = (str(corners[i][0][2][0]), str(corners[i][0][2][1]))
-                    corner_4 = (str(corners[i][0][3][0]), str(corners[i][0][3][1]))
-                    marker_info = ' '.join([*corner_1, *corner_2, *corner_3, *corner_4])
-                    return marker_info
+                    corner_1 = {"x": corners[i][0][0][0], "y": corners[i][0][0][1]}
+                    corner_2 = {"x": corners[i][0][1][0], "y": corners[i][0][1][1]}
+                    corner_3 = {"x": corners[i][0][2][0], "y": corners[i][0][2][1]}
+                    corner_4 = {"x": corners[i][0][3][0], "y": corners[i][0][3][1]}
+                    markers.append({"id": id, "corners": [corner_1, corner_2, corner_3, corner_4], "orientation": None})
+
+            return markers

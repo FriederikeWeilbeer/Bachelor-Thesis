@@ -44,7 +44,12 @@ class PygameController:
                 message = "stop"
 
             self.socket.send_string("%d %s" % (topic, message))
-            print(aruco_detection.getPosition(0))
+
+            # position of the leader
+            aruco_info = aruco_detection.getArucoInfo(0)
+            print(aruco_info)
+
+            # self.socket.send_string("%d %s" % (1, message))
             pygame.display.update()
 
 

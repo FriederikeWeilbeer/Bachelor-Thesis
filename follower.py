@@ -6,7 +6,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 40133
+port = 34113
 
 
 # set up zmq
@@ -20,7 +20,7 @@ def setUpZMQ():
     socket.connect(f"tcp://localhost:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
-    socket.setsockopt_string(zmq.SUBSCRIBE, '0')  # leader
+    socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # follower
 
 
 # Robot controller
@@ -83,7 +83,7 @@ def main(use_sim=False, ip='localhost', port=0):
             except zmq.Again as error:
                 pass
 
-            # Handle the robot state ans set the action
+            # Handle the robot state and set the action
             if robot_state == 'off':
                 robot_action = 'stop'
 
@@ -102,8 +102,6 @@ def main(use_sim=False, ip='localhost', port=0):
             if robot_action != robot_action_cur:
                 robot_action_cur = robot_action
                 action_map.get(robot_action, lambda: None)()
-
-
 
     except ConnectionError:
         print("Connection Error")
