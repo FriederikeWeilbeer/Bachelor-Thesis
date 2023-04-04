@@ -1,6 +1,7 @@
 import zmq
 import pygame
 import sys
+import aruco_detection
 
 
 class PygameController:
@@ -43,6 +44,7 @@ class PygameController:
                 message = "stop"
 
             self.socket.send_string("%d %s" % (topic, message))
+            print(aruco_detection.getPosition(0))
             pygame.display.update()
 
 

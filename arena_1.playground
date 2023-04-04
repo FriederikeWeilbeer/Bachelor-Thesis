@@ -7,14 +7,15 @@
 
 
 	<!--Definition of the world, width (w) and height (h) in cm (origin in a corner). Can also have a color (defined above) and ground texture (PNG image). The PNG image will be stretched to the world's size. Attribute energyScoringSystemEnabled defines whether the energy of the e-pucks will be counted.-->
-	<world w="150" h="150" groundTexture="background.png" energyScoringSystemEnabled="false"/>
+	<world w="250" h="150" groundTexture="background.png" energyScoringSystemEnabled="false"/>
 
 	<!--The position of the camera can be defined by its x,y and altitude in cm, yaw, pitch in radians.-->
-	<camera x="50" y="50" altitude="150" yaw=" 1.57" pitch="-1.56" />
+	<camera x="125" y="50" altitude="200" yaw=" 1.57" pitch="-1.56" />
 
 
 	<!--Robots: Attributes are the robot's center position in the world, x and y, in cm, its anglein radians, port number and node ID.-->
-	<robot type="thymio2" x="50" y="10" port="58060" angle="1.5708" name="Marvin" nodeId="0"/>
+	<robot type="thymio2" x="125" y="30" port="58060" angle="1.5708" name="Marvin" nodeId="0"/>
+	<robot type="thymio2" x="125" y="10" port="58060" angle="1.5708" name="Mert" nodeId="1"/>
 
 
 <!--End of Playground definition-->
