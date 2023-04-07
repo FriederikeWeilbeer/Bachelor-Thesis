@@ -6,7 +6,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 40133
+port = 39759
 
 
 # set up zmq
@@ -72,18 +72,16 @@ def main(use_sim=False, ip='localhost', port=0):
             # Receive and handle the message from the ZMQ server
             try:
                 topic, data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
-                print(data)
 
                 if topic == '42':  # Handle the message for all robots
                     robot_state = data
                 elif topic == str(th.first_node()):  # Handle the message for this robot
                     robot_action = data
-                    print(robot_action)
 
             except zmq.Again as error:
                 pass
 
-            # Handle the robot state ans set the action
+            # Handle the robot state and set the action
             if robot_state == 'off':
                 robot_action = 'stop'
 

@@ -45,11 +45,20 @@ class PygameController:
 
             self.socket.send_string("%d %s" % (topic, message))
 
-            # position of the leader
-            aruco_info = aruco_detection.getArucoInfo(0)
-            print(aruco_info)
+            # Get the leader's position and orientation
+            leader_info = aruco_detection.getArucoInfo(0)
+            leader_center = leader_info[0]["center"]
+            leader_orientation = leader_info[0]["orientation"]
 
-            # self.socket.send_string("%d %s" % (1, message))
+            # Get the follower's position and orientation
+            follower_info = aruco_detection.getArucoInfo(1)
+            follower_center = follower_info[0]["center"]
+            follower_orientation = follower_info[0]["orientation"]
+
+            # send leader's position and orientation and the followers position and orientation
+            # to the follower
+            self.socket.send_string("%d %s %s %s %s" % (1, leader_center, leader_orientation, follower_center, follower_orientation))
+
             pygame.display.update()
 
 
