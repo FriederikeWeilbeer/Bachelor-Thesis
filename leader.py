@@ -6,7 +6,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 39759
+port = 35411
 
 
 # set up zmq
@@ -100,8 +100,6 @@ def main(use_sim=False, ip='localhost', port=0):
             if robot_action != robot_action_cur:
                 robot_action_cur = robot_action
                 action_map.get(robot_action, lambda: None)()
-
-
 
     except ConnectionError:
         print("Connection Error")

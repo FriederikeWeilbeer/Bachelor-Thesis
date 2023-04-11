@@ -1,12 +1,14 @@
 # import required packages
 import time
 import sys
+
+import numpy as np
 import zmq
 import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 41303
+port = 43033
 
 
 # set up zmq
@@ -23,6 +25,41 @@ def setUpZMQ():
     socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # follower
 
 
+def calculate_point(xl, yl, oxl, oyl, distance):
+    # calculate the point to follow
+    x = xl + distance * oxl
+    y = yl + distance * oyl
+    return x, y
+
+
+def go_to_point(ox, oy, xf, yf, x, y):
+    robot_speed = 350
+    turn_speed = 150
+
+    # vector to destination
+    dx = x - xf
+    dy = y - yf
+
+    # calculate the angle between the two vectors
+    angle_radians = np.arctan2([oy, dy], [ox, dx])
+    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+
+    # turn left when point on the left side of the robot
+    if angle[0] - angle[1] > 10:
+        set_robot_speed(robot, -turn_speed, turn_speed)
+
+    # turn right when point on the right side of the robot
+    elif angle[0] - angle[1] < -10:
+        set_robot_speed(robot, turn_speed, -turn_speed)
+
+    # go straight when point in front of the robot
+    elif abs(dx) > 20 or abs(dy) > 20:
+        set_robot_speed(robot, robot_speed, robot_speed)
+
+    else:
+        stop_robot(robot)
+
+
 # Robot controller
 def stop_robot(robot):
     """Set both wheel robot_speeds to 0 to stop the robot"""
@@ -34,24 +71,6 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
-
-
-def getPoint(x, y):
-    return True, [float(x), float(y)]
-
-
-def calculateRobotCenter(data):
-    x = (float(data[2]) + float(data[4]) + float(data[6]) + float(data[8])) / 4
-    y = (float(data[3]) + float(data[5]) + float(data[7]) + float(data[9])) / 4
-    return [x, y]
-
-
-def makeVectors(data):
-    vec1 = [float(data[2]), float(data[3])]
-    vec2 = [float(data[4]), float(data[5])]
-    vec3 = [float(data[6]), float(data[7])]
-    vec4 = [float(data[8]), float(data[9])]
-    return vec1, vec2, vec3, vec4
 
 
 def main(use_sim=False, ip='localhost', port=0):
@@ -81,13 +100,38 @@ def main(use_sim=False, ip='localhost', port=0):
         # Main loop
         while True:
 
+            # initialize variables
+            topic = '42'
+            leader_x = 0
+            leader_y = 0
+            leader_orientation_x = 0
+            leader_orientation_y = 0
+            follower_x = 0
+            follower_y = 0
+            follower_orientation_x = 0
+            follower_orientation_y = 0
+
             # Receive and handle the message from the ZMQ server
             try:
-                leader_center, leader_orientation, follower_center, follower_orientation = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
-
-            except zmq.Again as error:
+                message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
+                topic = message[0]
+                if topic == '1':
+                    leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
+                        float, message[1:])
+                    point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y,
+                                            -100)
+                    go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point)
+                else:
+                    # Handle default message
+                    pass
+            except zmq.Again:
+                pass
+            except (ValueError, TypeError, IndexError) as e:
+                print(f"Error: {e}")
                 pass
 
+    except IndexError:
+        pass
     except ConnectionError:
         print("Connection Error")
     except Exception as err:
