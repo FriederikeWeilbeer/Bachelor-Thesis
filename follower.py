@@ -1,14 +1,16 @@
 # import required packages
 import time
 import sys
-
 import numpy as np
 import zmq
 import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 43033
+port = 40799
+
+ROBOT_SPEED = 350
+TURN_SPEED = 150
 
 
 # set up zmq
@@ -33,9 +35,6 @@ def calculate_point(xl, yl, oxl, oyl, distance):
 
 
 def go_to_point(ox, oy, xf, yf, x, y):
-    robot_speed = 350
-    turn_speed = 150
-
     # vector to destination
     dx = x - xf
     dy = y - yf
@@ -45,16 +44,16 @@ def go_to_point(ox, oy, xf, yf, x, y):
     angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
 
     # turn left when point on the left side of the robot
-    if angle[0] - angle[1] > 10:
-        set_robot_speed(robot, -turn_speed, turn_speed)
+    if angle[0] - angle[1] > 5:
+        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
     # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -10:
-        set_robot_speed(robot, turn_speed, -turn_speed)
+    elif angle[0] - angle[1] < -5:
+        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     # go straight when point in front of the robot
     elif abs(dx) > 20 or abs(dy) > 20:
-        set_robot_speed(robot, robot_speed, robot_speed)
+        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     else:
         stop_robot(robot)
@@ -95,34 +94,36 @@ def main(use_sim=False, ip='localhost', port=0):
         # ZMQ setup
         setUpZMQ()
 
+        # initialize variables
+        robot_state = 'off'
+
         print('ready')
 
         # Main loop
         while True:
 
-            # initialize variables
-            topic = '42'
-            leader_x = 0
-            leader_y = 0
-            leader_orientation_x = 0
-            leader_orientation_y = 0
-            follower_x = 0
-            follower_y = 0
-            follower_orientation_x = 0
-            follower_orientation_y = 0
-
             # Receive and handle the message from the ZMQ server
             try:
                 message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
                 topic = message[0]
-                if topic == '1':
-                    leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
-                        float, message[1:])
-                    point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y,
-                                            -100)
-                    go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point)
+                if topic == '42':
+                    robot_state = message[1]
+                    if robot_state == 'quit':
+                        stop_robot(robot)
+                        break
+                    if robot_state == 'off':
+                        stop_robot(robot)
+                # handle message for follower
+                elif topic == str(th.first_node()):
+                    if robot_state == 'on':
+                        leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
+                            float, message[1:])
+                        point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y,
+                                                -100)
+                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point)
                 else:
                     # Handle default message
+                    stop_robot(robot)
                     pass
             except zmq.Again:
                 pass
@@ -130,11 +131,11 @@ def main(use_sim=False, ip='localhost', port=0):
                 print(f"Error: {e}")
                 pass
 
-    except IndexError:
-        pass
-    except ConnectionError:
-        print("Connection Error")
-    except Exception as err:
+    except (IndexError, ConnectionError) as err:
+        if isinstance(err, IndexError):
+            pass
+        elif isinstance(err, ConnectionError):
+            print("Connection Error")
         # Stop robot
         stop_robot(robot)
         print(err)
@@ -148,9 +149,7 @@ if __name__ == '__main__':
     print("Starting processes...")
 
     # spawn process for each robot
-    processes = []
-    # for port in ports:
-    processes.append(multiprocessing.Process(target=main, args=(True, "localhost", port,)))
+    processes = [multiprocessing.Process(target=main, args=(True, "localhost", port,))]
 
     # start processes
     for p in processes:

@@ -1,5 +1,6 @@
 import zmq
 import pygame
+import time
 import sys
 import aruco_detection
 
@@ -33,13 +34,22 @@ class RobotController:
 
                 keys = pygame.key.get_pressed()
                 topic = 0
-                if keys[pygame.K_s]:
-                    topic = 42
-                    message = "on"
                 # when 'q' or esc is hit, quit the program
-                elif keys[pygame.K_q] or keys[pygame.K_ESCAPE]:
+
+                if keys[pygame.K_ESCAPE]:
+                    # send the message to all robots
+                    self.zmq_socket.send_string("%d %s" % (42, "quit"))
+                    time.sleep(5)
+                    print("Quitting...")
+                    sys.exit()
+                elif keys[pygame.K_q]:
                     topic = 42
                     message = "off"
+                    # send the message to all robots
+                    self.zmq_socket.send_string("%d %s" % (topic, message))
+                elif keys[pygame.K_s]:
+                    topic = 42
+                    message = "on"
                 elif keys[pygame.K_UP] and keys[pygame.K_LEFT]:
                     message = "left"
                 elif keys[pygame.K_UP] and keys[pygame.K_RIGHT]:
