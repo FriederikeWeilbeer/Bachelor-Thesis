@@ -6,7 +6,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 40133
+port = 43785
 
 
 # set up zmq
@@ -72,18 +72,18 @@ def main(use_sim=False, ip='localhost', port=0):
             # Receive and handle the message from the ZMQ server
             try:
                 topic, data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
-                print(data)
 
                 if topic == '42':  # Handle the message for all robots
                     robot_state = data
                 elif topic == str(th.first_node()):  # Handle the message for this robot
                     robot_action = data
-                    print(robot_action)
 
-            except zmq.Again as error:
+            except zmq.Again:
                 pass
 
-            # Handle the robot state ans set the action
+            # Handle the robot state and set the action
+            if robot_state == 'quit':
+                stop_robot(robot)
             if robot_state == 'off':
                 robot_action = 'stop'
 
@@ -103,8 +103,6 @@ def main(use_sim=False, ip='localhost', port=0):
                 robot_action_cur = robot_action
                 action_map.get(robot_action, lambda: None)()
 
-
-
     except ConnectionError:
         print("Connection Error")
     except Exception as err:
@@ -121,9 +119,7 @@ if __name__ == '__main__':
     print("Starting processes...")
 
     # spawn process for each robot
-    processes = []
-    # for port in ports:
-    processes.append(multiprocessing.Process(target=main, args=(True, "localhost", port,)))
+    processes = [multiprocessing.Process(target=main, args=(True, "localhost", port,))]
 
     # start processes
     for p in processes:
