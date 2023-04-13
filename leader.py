@@ -6,7 +6,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 43785
+port = 34399
 
 
 # set up zmq
@@ -20,7 +20,7 @@ def setUpZMQ():
     socket.connect(f"tcp://localhost:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
-    socket.setsockopt_string(zmq.SUBSCRIBE, '0')  # leader
+    socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # leader
 
 
 # Robot controller
@@ -54,6 +54,7 @@ def main(use_sim=False, ip='localhost', port=0):
         robot = th[th.first_node()]  # Create an object to control the robot
         print(f"{robot} connected")  # Print the robot name
         time.sleep(5)  # Delay to allow robot initialization of all variables
+        print(str(th.first_node()))
 
         # ZMQ setup
         setUpZMQ()
