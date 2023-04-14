@@ -7,10 +7,11 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 40799
+port = 5556
 
 ROBOT_SPEED = 350
-TURN_SPEED = 150
+TURN_SPEED = 200
+DISTANCE = -50
 
 
 # set up zmq
@@ -21,16 +22,17 @@ def setUpZMQ():
     global socket
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    socket.connect(f"tcp://localhost:{port}")
+    socket.connect(f"tcp://192.168.188.62:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
-    socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # follower
+    socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def calculate_point(xl, yl, oxl, oyl, distance):
+def calculate_point(xl, yl, oxl, oyl):
     # calculate the point to follow
-    x = xl + distance * oxl
-    y = yl + distance * oyl
+    x = xl + DISTANCE * oxl
+    y = yl + DISTANCE * oyl
+    print(f'point to follow: {x}, {y}')
     return x, y
 
 
@@ -40,8 +42,11 @@ def go_to_point(ox, oy, xf, yf, x, y):
     dy = y - yf
 
     # calculate the angle between the two vectors
-    angle_radians = np.arctan2([oy, dy], [ox, dx])
-    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+    #angle_radians = np.arctan2([oy, dy], [ox, dx])
+    #angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+
+    angle = [np.rad2deg(np.arctan2([oy, dy], [ox, dx])[0]),
+             np.rad2deg(np.arctan2([oy, dy], [ox, dx])[1])]
 
     # turn left when point on the left side of the robot
     if angle[0] - angle[1] > 5:
@@ -52,7 +57,7 @@ def go_to_point(ox, oy, xf, yf, x, y):
         set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     # go straight when point in front of the robot
-    elif abs(dx) > 20 or abs(dy) > 20:
+    elif abs(dx) > 5 or abs(dy) > 5:
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     else:
@@ -72,7 +77,7 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     robot['motor.right.target'] = right_robot_speed
 
 
-def main(use_sim=False, ip='localhost', port=0):
+def main(use_sim=False, ip='192.168.188.62', port=0):
     """main loop of the program"""
     try:
         # Configure Interface to Thymio robot
@@ -106,20 +111,21 @@ def main(use_sim=False, ip='localhost', port=0):
             try:
                 message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
                 topic = message[0]
+                # print(message)
                 if topic == '42':
                     robot_state = message[1]
+                    print(robot_state)
                     if robot_state == 'quit':
                         stop_robot(robot)
                         break
                     if robot_state == 'off':
                         stop_robot(robot)
                 # handle message for follower
-                elif topic == str(th.first_node()):
+                elif topic == '2':
                     if robot_state == 'on':
                         leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
                             float, message[1:])
-                        point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y,
-                                                -100)
+                        point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y)
                         go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point)
                 else:
                     # Handle default message
@@ -149,7 +155,7 @@ if __name__ == '__main__':
     print("Starting processes...")
 
     # spawn process for each robot
-    processes = [multiprocessing.Process(target=main, args=(True, "localhost", port,))]
+    processes = [multiprocessing.Process(target=main, args=(False, "192.168.188.62", port,))]
 
     # start processes
     for p in processes:
