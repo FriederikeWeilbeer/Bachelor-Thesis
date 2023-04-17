@@ -19,9 +19,9 @@ def findArucoMarkers(img):
     return corners, ids
 
 
-def getArucoInfo(id):
+def getArucoInfo():
     with mss.mss() as sct:
-        monitor_number = 3
+        monitor_number = 1
         mon = sct.monitors[monitor_number]
         # The screen part to capture
         monitor = {
@@ -34,28 +34,4 @@ def getArucoInfo(id):
         while True:
             img = np.array(sct.grab(monitor))
             corners, ids = findArucoMarkers(img)
-
-            markers = []
-            for i in range(len(ids)):
-                if ids[i][0] == id:
-                    # Thymio facing up (-y-axis)
-                    top_right = {"x": corners[i][0][0][0], "y": corners[i][0][0][1]}
-                    bottom_right = {"x": corners[i][0][1][0], "y": corners[i][0][1][1]}
-                    bottom_left = {"x": corners[i][0][2][0], "y": corners[i][0][2][1]}
-                    top_left = {"x": corners[i][0][3][0], "y": corners[i][0][3][1]}
-
-                    # calculate the center of the marker
-                    sum_x = np.sum(top_right["x"] + bottom_right["x"] + bottom_left["x"] + top_left["x"])
-                    sum_y = np.sum(top_right["y"] + bottom_right["y"] + bottom_left["y"] + top_left["y"])
-                    center = str(sum_x / 4) + ' ' + str(sum_y / 4)
-
-                    # calculate the vector from corner 4 to corner 1
-                    vector = top_right["x"] - bottom_right["x"], top_right["y"] - bottom_right["y"]
-
-                    # normalize the vector
-                    orientation = vector / np.linalg.norm(vector)
-                    orientation = str(orientation[0]) + ' ' + str(orientation[1])
-
-                    markers.append({"center": center, "orientation": orientation})
-
-            return markers
+            return corners, ids

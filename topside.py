@@ -47,45 +47,33 @@ def getKeyboardInput():
     return topic, message
 
 
-def get_marker_info(marker_id, arucoDict, arucoParam, cap):
-    if simulation_mode_enabled:
-        marker_info = aruco_detection.getArucoInfo(marker_id)
-        if marker_info:
-            center = marker_info[0]["center"]
-            orientation = marker_info[0]["orientation"]
-            return center, orientation
-    elif not simulation_mode_enabled:
+def get_marker_info(marker_id, ids, corners):
+    markers = []
+    for i in range(len(ids)):
+        if ids[i][0] == marker_id:
+            # Thymio facing up (-y-axis)
+            top_right = {"x": corners[i][0][0][0], "y": corners[i][0][0][1]}
+            bottom_right = {"x": corners[i][0][1][0], "y": corners[i][0][1][1]}
+            bottom_left = {"x": corners[i][0][2][0], "y": corners[i][0][2][1]}
+            top_left = {"x": corners[i][0][3][0], "y": corners[i][0][3][1]}
 
-        success, img = cap.read()
-        corners, ids = findArucoMarkers(img, arucoDict, arucoParam)
-        cv2.imshow('image', img)
+            # calculate the center of the marker
+            sum_x = np.sum(top_right["x"] + bottom_right["x"] + bottom_left["x"] + top_left["x"])
+            sum_y = np.sum(top_right["y"] + bottom_right["y"] + bottom_left["y"] + top_left["y"])
+            center = str(sum_x / 4) + ' ' + str(sum_y / 4)
 
-        markers = []
-        for i, id in enumerate(ids):
-            if id == marker_id:
-                # Thymio facing up (-y-axis)
-                top_right = {"x": corners[i][0][0][0], "y": corners[i][0][0][1]}
-                bottom_right = {"x": corners[i][0][1][0], "y": corners[i][0][1][1]}
-                bottom_left = {"x": corners[i][0][2][0], "y": corners[i][0][2][1]}
-                top_left = {"x": corners[i][0][3][0], "y": corners[i][0][3][1]}
+            # calculate the vector from corner 4 to corner 1
+            vector = top_right["x"] - bottom_right["x"], top_right["y"] - bottom_right["y"]
 
-                # calculate the center of the marker
-                sum_x = np.sum(top_right["x"] + bottom_right["x"] + bottom_left["x"] + top_left["x"])
-                sum_y = np.sum(top_right["y"] + bottom_right["y"] + bottom_left["y"] + top_left["y"])
-                center = str(sum_x / 4) + ' ' + str(sum_y / 4)
+            # normalize the vector
+            orientation = vector / np.linalg.norm(vector)
+            orientation = str(orientation[0]) + ' ' + str(orientation[1])
+            markers.append({"center": center, "orientation": orientation})
 
-                # calculate the vector from corner 4 to corner 1
-                vector = top_right["x"] - bottom_right["x"], top_right["y"] - bottom_right["y"]
-
-                # normalize the vector
-                orientation = vector / np.linalg.norm(vector)
-                orientation = str(orientation[0]) + ' ' + str(orientation[1])
-                markers.append({"center": center, "orientation": orientation})
-
-        if markers:
-            center = markers[0]["center"]
-            orientation = markers[0]["orientation"]
-            return center, orientation
+    if markers:
+        center = markers[0]["center"]
+        orientation = markers[0]["orientation"]
+        return center, orientation
     else:
         return None, None
 
@@ -111,9 +99,20 @@ def main(screen_size=(100, 100), zmq_port=5556):
     arucoParam = aruco.DetectorParameters_create()
     # setup video capture
     cap = cv2.VideoCapture(0)
+    # set camera resolution
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+    cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
 
     while True:
         try:
+            if simulation_mode_enabled:
+                corners, ids = aruco_detection.getArucoInfo()
+            if not simulation_mode_enabled:
+                success, img = cap.read()
+                corners, ids = findArucoMarkers(img, arucoDict, arucoParam)
+                cv2.imshow('image', img)
+
             # handle pygame events and keyboard inputs
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -129,10 +128,12 @@ def main(screen_size=(100, 100), zmq_port=5556):
             zmq_socket.send_string("%d %s" % (topic, message))
 
             # Get the leader's position and orientation
-            leader_center, leader_orientation = get_marker_info(1, arucoDict, arucoParam, cap)
+            leader_center, leader_orientation = get_marker_info(10, ids, corners)
+            #print('leader: ', leader_center, leader_orientation)
 
             # Get the follower's position and orientation
-            follower_center, follower_orientation = get_marker_info(2, arucoDict, arucoParam, cap)
+            follower_center, follower_orientation = get_marker_info(11, ids, corners)
+            #print('follower: ', follower_center, follower_orientation)
 
             # send leader's position and orientation and the followers position and orientation
             # to the follower only when all information is available
@@ -144,6 +145,9 @@ def main(screen_size=(100, 100), zmq_port=5556):
 
         except IndexError:
             # Ignore IndexError exceptions and continue the loop
+            pass
+
+        except TypeError:
             pass
 
         except Exception as e:

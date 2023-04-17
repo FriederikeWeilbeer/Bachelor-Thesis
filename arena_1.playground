@@ -14,8 +14,8 @@
 
 
 	<!--Robots: Attributes are the robot's center position in the world, x and y, in cm, its anglein radians, port number and node ID.-->
-	<robot type="thymio2" x="125" y="30" port="58060" angle="1.5708" name="Marvin" nodeId="1"/>
-	<robot type="thymio2" x="125" y="10" port="58060" angle="1.5708" name="Mert" nodeId="2"/>
+	<robot type="thymio2" x="125" y="30" port="58060" angle="1.5708" name="Marvin" nodeId="10"/>
+	<robot type="thymio2" x="125" y="10" port="58060" angle="1.5708" name="Mert" nodeId="11"/>
 
 
 <!--End of Playground definition-->
