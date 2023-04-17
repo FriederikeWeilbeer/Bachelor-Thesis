@@ -6,7 +6,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port = 34399
+port = 33185
 
 
 # set up zmq
