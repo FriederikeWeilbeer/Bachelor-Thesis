@@ -94,11 +94,11 @@ def main(screen_size=(100, 100), zmq_port=5556):
     setUpZMQ(zmq_port)
 
     # setup aruco Dictionary
-    key = getattr(aruco, f'DICT_{6}X{6}_{250}')
+    key = getattr(aruco, f'DICT_{4}X{4}_{100}')
     arucoDict = aruco.Dictionary_get(key)
     arucoParam = aruco.DetectorParameters_create()
     # setup video capture
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture(2)
     # set camera resolution
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -128,11 +128,11 @@ def main(screen_size=(100, 100), zmq_port=5556):
             zmq_socket.send_string("%d %s" % (topic, message))
 
             # Get the leader's position and orientation
-            leader_center, leader_orientation = get_marker_info(10, ids, corners)
+            leader_center, leader_orientation = get_marker_info(leader_id, ids, corners)
             #print('leader: ', leader_center, leader_orientation)
 
             # Get the follower's position and orientation
-            follower_center, follower_orientation = get_marker_info(11, ids, corners)
+            follower_center, follower_orientation = get_marker_info(follower_id, ids, corners)
             #print('follower: ', follower_center, follower_orientation)
 
             # send leader's position and orientation and the followers position and orientation

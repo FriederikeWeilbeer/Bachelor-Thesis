@@ -22,10 +22,10 @@ def setUpZMQ():
     global socket
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    socket.connect(f"tcp://192.168.188.62:{port}")
+    socket.connect(f"tcp://localhost:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
-    socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
+    socket.setsockopt_string(zmq.SUBSCRIBE, '11')  # follower
 
 
 def calculate_point(xl, yl, oxl, oyl):
@@ -75,15 +75,20 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     robot['motor.right.target'] = right_robot_speed
 
 
-def main():
+def main(use_sim=False, ip='localhost', port=0):
     """main loop of the program"""
     try:
+        # Configure Interface to Thymio robot
+        if use_sim:
+            th = Thymio(use_tcp=True, host=ip, tcp_port=port,
+                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+        else:
+            port = Connection.serial_default_port()
+            th = Thymio(serial_port=port,
+                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+
         # Robot Connection setup
         global robot
-        port = Connection.serial_default_port()
-        th = Thymio(serial_port=port,
-                    on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
-
         th.connect()  # Connect to the robot
         robot = th[th.first_node()]  # Create an object to control the robot
         print(f"{robot} connected")  # Print the robot name
@@ -146,4 +151,15 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    print("Starting processes...")
+
+    # spawn process for each robot
+    processes = [multiprocessing.Process(target=main, args=(True, "localhost", port,))]
+
+    # start processes
+    for p in processes:
+        p.start()
+
+    # wait for processes to finish
+    for p in processes:
+        p.join()
