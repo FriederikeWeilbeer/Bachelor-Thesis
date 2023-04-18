@@ -21,7 +21,7 @@ def findArucoMarkers(img):
 
 def getArucoInfo():
     with mss.mss() as sct:
-        monitor_number = 1
+        monitor_number = 2
         mon = sct.monitors[monitor_number]
         # The screen part to capture
         monitor = {

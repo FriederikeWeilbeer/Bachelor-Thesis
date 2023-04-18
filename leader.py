@@ -1,10 +1,16 @@
 # import required packages
 import time
-import sys
 import zmq
 import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
+
+port_leader = 41891
+ip_addr = 'localhost'
+simulation = True
+
+ROBOT_SPEED = 350
+TURN_SPEED = 200
 
 
 # set up zmq
@@ -15,7 +21,8 @@ def setUpZMQ(queue):
     global socket
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    socket.connect(f"tcp://192.168.188.62:{port}")
+    # socket.connect(f"tcp://192.168.188.62:{port}")
+    socket.connect(f"tcp://localhost:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # leader
@@ -42,12 +49,17 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     robot['motor.right.target'] = right_robot_speed
 
 
-def main():
+def main(sim, ip, port):
     """main loop of the program"""
     try:
-        port = Connection.serial_default_port()
-        th = Thymio(serial_port=port,
-                    on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+        if sim:
+            th = Thymio(use_tcp=True, host=ip, tcp_port=port,
+                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+        else:
+            port = Connection.serial_default_port()
+            th = Thymio(serial_port=port,
+                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+        global robot
         # Robot Connection setup
         th.connect()  # Connect to the robot
         robot = th[th.first_node()]  # Create an object to control the robot
@@ -59,16 +71,16 @@ def main():
         robot_state = 'off'  # State of the robot (on/off)
         robot_action = 'stop'  # Action of the robot
         robot_action_cur = ''  # Current action of the robot
-        robot_speed = 350  # Max speed of the robot
         new_command_received = False  # Flag to indicate a new command
+
         action_map = {
-            'straight': lambda: set_robot_speed(robot, robot_speed, robot_speed),
-            'back': lambda: set_robot_speed(robot, -robot_speed, -robot_speed),
+            'straight': lambda: set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED),
+            'back': lambda: set_robot_speed(robot, -ROBOT_SPEED, -ROBOT_SPEED),
             'stop': lambda: stop_robot(robot),
-            'left': lambda: set_robot_speed(robot, int(robot_speed / 3), robot_speed),
-            'right': lambda: set_robot_speed(robot, robot_speed, int(robot_speed / 3)),
-            'spotleft': lambda: set_robot_speed(robot, -robot_speed, robot_speed),
-            'spotright': lambda: set_robot_speed(robot, robot_speed, -robot_speed),
+            'left': lambda: set_robot_speed(robot, TURN_SPEED, ROBOT_SPEED),
+            'right': lambda: set_robot_speed(robot, ROBOT_SPEED, TURN_SPEED),
+            'spotleft': lambda: set_robot_speed(robot, -ROBOT_SPEED, ROBOT_SPEED),
+            'spotright': lambda: set_robot_speed(robot, ROBOT_SPEED, -ROBOT_SPEED),
         }
 
         # start ZMQ handling in a separate process
@@ -125,4 +137,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    print('Starting Leader ... ')
+    main(sim=simulation, ip=ip_addr, port=port_leader)
