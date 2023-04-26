@@ -5,15 +5,13 @@ import zmq
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port_follower = 42827
+port_follower = 36525
 ip_addr = 'localhost'
 simulation = True
 
-ROBOT_SPEED = 350
-TURN_SPEED = 200
+ROBOT_SPEED = 200
+TURN_SPEED = 100
 DISTANCE = -100
-
-MOTION = 'straight'         # 'straight' or 'happiness'
 
 
 # set up zmq
@@ -35,6 +33,7 @@ def calculate_point(xl, yl, oxl, oyl):
     # calculate the point to follow
     x = xl + DISTANCE * oxl
     y = yl + DISTANCE * oyl
+    print('x: ', x, 'y: ', y)
     return x, y
 
 
@@ -47,36 +46,16 @@ def go_to_point(ox, oy, xf, yf, x, y):
     angle_radians = np.arctan2([oy, dy], [ox, dx])
     angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
 
-    if angle[0] - angle[1] > 15:
+    # turn left when point on the left side of the robot
+    if angle[0] - angle[1] > 10:
         set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
     # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -15:
+    elif angle[0] - angle[1] < -10:
         set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
-    # no follower motion selected
-    if MOTION == 'straight':
-        straight_motion(dx, dy)
-
-    # happiness motion selected
-    elif MOTION == 'happiness':
-        happiness_motion(dx, dy, ox, oy, xf, yf, x, y)
-
-    else:
-        stop_robot(robot)
-
-
-def happiness_motion(dx, dy, ox, oy, xf, yf, x, y):
-    # calculate the distance to the destination
-    distance = np.sqrt(dx ** 2 + dy ** 2)
-
-    # sine wave between follower and destination
-
-
-
-def straight_motion(dx, dy):
     # go straight when point in front of the robot
-    if abs(dx) > 15 or abs(dy) > 15:
+    elif abs(dx) > 20 or abs(dy) > 20:
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     else:
@@ -94,6 +73,7 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
+    time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -110,7 +90,6 @@ def main(sim, ip, port):
         global robot
         th.connect()  # Connect to the robot
         robot = th[th.first_node()]  # Create an object to control the robot
-        print(f"{robot} connected")  # Print the robot name
         time.sleep(5)  # Delay to allow robot initialization of all variables
 
         # ZMQ setup
@@ -123,12 +102,11 @@ def main(sim, ip, port):
 
         # Main loop
         while True:
-
             # Receive and handle the message from the ZMQ server
             try:
                 message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
                 topic = message[0]
-                # print(message)
+                print(message)
                 if topic == '42':
                     robot_state = message[1]
                     print(robot_state)
@@ -143,10 +121,9 @@ def main(sim, ip, port):
                         leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
                             float, message[1:])
                         point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y)
-                        amplitude = 50
-                        frequency = 0.5
-                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point, amplitude, frequency)
-
+                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point)
+                        # print('leader: ', leader_x, leader_y)
+                        # print('follower: ', follower_x, follower_y)
                 else:
                     # Handle default message
                     stop_robot(robot)

@@ -5,12 +5,12 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port_leader = 41891
+port_leader = 46317
 ip_addr = 'localhost'
 simulation = True
 
-ROBOT_SPEED = 350
-TURN_SPEED = 200
+ROBOT_SPEED = 200
+TURN_SPEED = 100
 
 
 # set up zmq
@@ -47,6 +47,7 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
+    time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -63,7 +64,6 @@ def main(sim, ip, port):
         # Robot Connection setup
         th.connect()  # Connect to the robot
         robot = th[th.first_node()]  # Create an object to control the robot
-        print(f"{robot} connected")  # Print the robot name
         time.sleep(5)  # Delay to allow robot initialization of all variables
         print(str(th.first_node()))
 
@@ -122,7 +122,7 @@ def main(sim, ip, port):
                 # Execute the appropriate action for the current command
                 action_map.get(robot_action, lambda: None)()
                 robot_action_cur = robot_action
-                time.sleep(0.1)
+
 
     except ConnectionError:
         print("Connection Error")

@@ -1,4 +1,5 @@
 # import required packages
+import time
 import zmq
 import pygame
 import sys
@@ -94,8 +95,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
 
     if not simulation_mode_enabled:
         # setup aruco Dictionary
-        # key = getattr(aruco, f'DICT_{4}X{4}_{100}')
-        key = getattr(aruco, f'DICT_{6}X{6}_{250}')
+        key = getattr(aruco, f'DICT_{4}X{4}_{100}')
         arucoDict = aruco.Dictionary_get(key)
         arucoParam = aruco.DetectorParameters_create()
         # setup video capture
