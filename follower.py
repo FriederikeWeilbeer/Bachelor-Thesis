@@ -5,6 +5,7 @@ import zmq
 from thymiodirect import Connection
 from thymiodirect import Thymio
 from collections import deque
+from matplotlib import pyplot as plt
 
 port_follower = 45735
 ip_addr = 'localhost'
@@ -31,6 +32,39 @@ def setUpZMQ():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
+def happiness(leader_pos, leader_orientation, follower_pos, follower_orientation, point_deque):
+    # calculate the length of the line segment between the starting and end points
+    segment_length = np.linalg.norm(follower_pos - leader_pos)
+
+    # split the segment into six smaller segments
+    segment_count = 5
+    segment_size = segment_length / segment_count
+    sign = 1
+
+    for i in range(segment_count):
+        # calculate the current position along the line segment
+        segment_start = leader_pos - leader_orientation * (i * segment_size)
+        segment_end = leader_pos - leader_orientation * ((i + 1) * segment_size)
+
+        # calculate the mid-point between the start and end of the current segment
+        mid_point = (segment_start + segment_end) / 2
+
+        # calculate the sine wave displacement at the mid-point
+        sine_displacement = np.sin((np.pi / segment_count) * i)
+
+        # calculate the final position of the mid-point, displaced by the sine wave
+        final_point = mid_point[0], mid_point[1] + sine_displacement * sign * DISTANCE
+
+        # add the final point to the deque
+        point_deque.append(final_point)
+        sign = -sign
+
+    # plot the points with matplotlib
+    # plt.plot(*zip(*point_deque))
+    # plt.show()
+    return point_deque
+
+
 def calculate_point(xl, yl, oxl, oyl, point_deque):
     # calculate the point to follow
     x = xl + DISTANCE * oxl
@@ -40,34 +74,33 @@ def calculate_point(xl, yl, oxl, oyl, point_deque):
 
 
 def go_to_point(ox, oy, xf, yf, point_deque):
-    # pop first point from deque
-    if len(point_deque) > 0:
+
+    # loop through queue
+    for i in range(len(point_deque)):
         x, y = point_deque.popleft()
-    else:
-        return
 
-    # vector to destination
-    dx = x - xf
-    dy = y - yf
+        # vector to destination
+        dx = x - xf
+        dy = y - yf
 
-    # calculate the angle between the two vectors
-    angle_radians = np.arctan2([oy, dy], [ox, dx])
-    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+        # calculate the angle between the two vectors
+        angle_radians = np.arctan2([oy, dy], [ox, dx])
+        angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
 
-    # turn left when point on the left side of the robot
-    if angle[0] - angle[1] > 15:
-        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+        # turn left when point on the left side of the robot
+        if angle[0] - angle[1] > 15:
+            set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
-    # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -15:
-        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
+        # turn right when point on the right side of the robot
+        elif angle[0] - angle[1] < -15:
+            set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
-    # go straight when point in front of the robot
-    elif abs(dx) > 15 or abs(dy) > 15:
-        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
+        # go straight when point in front of the robot
+        elif abs(dx) > 15 or abs(dy) > 15:
+            set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
-    else:
-        stop_robot(robot)
+        else:
+            stop_robot(robot)
 
 
 # Robot controller
@@ -129,8 +162,12 @@ def main(sim, ip, port):
                     if robot_state == 'on':
                         leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
                             float, message[1:])
-                        points = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y, points)
-                        print('deque: ', points)
+                        follower_orientation = np.array([follower_orientation_x, follower_orientation_y])
+                        follower_pos = np.array([follower_x, follower_y])
+                        leader_pos = np.array([leader_x, leader_y])
+                        leader_orientation = np.array([leader_orientation_x, leader_orientation_y])
+
+                        points = happiness(leader_pos, leader_orientation, follower_pos, follower_orientation, points)
                         go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, points)
                         # print('leader: ', leader_x, leader_y)
                         # print('follower: ', follower_x, follower_y)
