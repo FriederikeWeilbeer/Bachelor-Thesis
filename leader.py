@@ -5,8 +5,9 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port_leader = 46317
+port_leader = 46635
 ip_addr = 'localhost'
+# ip_addr = '192.168.188.62'
 simulation = True
 
 ROBOT_SPEED = 200
@@ -22,7 +23,7 @@ def setUpZMQ(queue):
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     # socket.connect(f"tcp://192.168.188.62:{port}")
-    socket.connect(f"tcp://localhost:{port}")
+    socket.connect(f"tcp://{ip_addr}:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # leader
@@ -92,6 +93,7 @@ def main(sim, ip, port):
 
         # Main loop
         while True:
+            time.sleep(0.1)
 
             # handle messages from ZMQ
             while not message_queue.empty():
@@ -123,10 +125,11 @@ def main(sim, ip, port):
                 action_map.get(robot_action, lambda: None)()
                 robot_action_cur = robot_action
 
-
-    except ConnectionError:
-        print("Connection Error")
-    except Exception as err:
+    except (IndexError, ConnectionError) as err:
+        if isinstance(err, IndexError):
+            pass
+        elif isinstance(err, ConnectionError):
+            print("Connection Error")
         # Stop robot
         stop_robot(robot)
         print(err)
@@ -137,5 +140,5 @@ def main(sim, ip, port):
 
 
 if __name__ == '__main__':
-    print('Starting Leader ... ')
+    print('Starting leader ... ')
     main(sim=simulation, ip=ip_addr, port=port_leader)

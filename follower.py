@@ -4,9 +4,11 @@ import numpy as np
 import zmq
 from thymiodirect import Connection
 from thymiodirect import Thymio
+from collections import deque
 
-port_follower = 36525
+port_follower = 45735
 ip_addr = 'localhost'
+# ip_addr = '192.168.188.62'
 simulation = True
 
 ROBOT_SPEED = 200
@@ -23,21 +25,27 @@ def setUpZMQ():
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     # socket.connect(f"tcp://192.168.188.62:{port}")
-    socket.connect(f"tcp://localhost:{port}")
+    socket.connect(f"tcp://{ip_addr}:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def calculate_point(xl, yl, oxl, oyl):
+def calculate_point(xl, yl, oxl, oyl, point_deque):
     # calculate the point to follow
     x = xl + DISTANCE * oxl
     y = yl + DISTANCE * oyl
-    print('x: ', x, 'y: ', y)
-    return x, y
+    point_deque.append((x, y))
+    return point_deque
 
 
-def go_to_point(ox, oy, xf, yf, x, y):
+def go_to_point(ox, oy, xf, yf, point_deque):
+    # pop first point from deque
+    if len(point_deque) > 0:
+        x, y = point_deque.popleft()
+    else:
+        return
+
     # vector to destination
     dx = x - xf
     dy = y - yf
@@ -47,15 +55,15 @@ def go_to_point(ox, oy, xf, yf, x, y):
     angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
 
     # turn left when point on the left side of the robot
-    if angle[0] - angle[1] > 10:
+    if angle[0] - angle[1] > 15:
         set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
     # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -10:
+    elif angle[0] - angle[1] < -15:
         set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     # go straight when point in front of the robot
-    elif abs(dx) > 20 or abs(dy) > 20:
+    elif abs(dx) > 15 or abs(dy) > 15:
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     else:
@@ -73,7 +81,6 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
-    time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -98,21 +105,23 @@ def main(sim, ip, port):
         # initialize variables
         robot_state = 'off'
 
+        # initialize deque for points
+        points = deque()
+
         print('ready')
 
         # Main loop
         while True:
+            time.sleep(0.1)
             # Receive and handle the message from the ZMQ server
             try:
                 message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
                 topic = message[0]
-                print(message)
                 if topic == '42':
                     robot_state = message[1]
                     print(robot_state)
                     if robot_state == 'quit':
                         stop_robot(robot)
-                        break
                     if robot_state == 'off':
                         stop_robot(robot)
                 # handle message for follower
@@ -120,8 +129,9 @@ def main(sim, ip, port):
                     if robot_state == 'on':
                         leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
                             float, message[1:])
-                        point = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y)
-                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, *point)
+                        points = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y, points)
+                        print('deque: ', points)
+                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, points)
                         # print('leader: ', leader_x, leader_y)
                         # print('follower: ', follower_x, follower_y)
                 else:

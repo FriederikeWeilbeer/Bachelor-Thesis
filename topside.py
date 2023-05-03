@@ -99,7 +99,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoDict = aruco.Dictionary_get(key)
         arucoParam = aruco.DetectorParameters_create()
         # setup video capture
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         # set camera resolution
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
