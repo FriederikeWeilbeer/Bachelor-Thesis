@@ -36,12 +36,16 @@ def getKeyboardInput():
         message = "right"
     elif keys[pygame.K_UP]:
         message = "straight"
-    elif keys[pygame.K_LEFT]:
+    elif keys[pygame.K_LEFT] and keys[pygame.K_DOWN]:
         message = "spotleft"
-    elif keys[pygame.K_RIGHT]:
+    elif keys[pygame.K_RIGHT] and keys[pygame.K_DOWN]:
         message = "spotright"
     elif keys[pygame.K_DOWN]:
         message = "back"
+    elif keys[pygame.K_LEFT]:
+        message = "tightleft"
+    elif keys[pygame.K_RIGHT]:
+        message = "tightright"
     else:
         message = "stop"
     return topic, message

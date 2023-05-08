@@ -5,7 +5,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port_leader = 46635
+port_leader = 37143
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
@@ -82,6 +82,8 @@ def main(sim, ip, port):
             'right': lambda: set_robot_speed(robot, ROBOT_SPEED, TURN_SPEED),
             'spotleft': lambda: set_robot_speed(robot, -ROBOT_SPEED, ROBOT_SPEED),
             'spotright': lambda: set_robot_speed(robot, ROBOT_SPEED, -ROBOT_SPEED),
+            'tightleft': lambda: set_robot_speed(robot, 0, ROBOT_SPEED),
+            'tightright': lambda: set_robot_speed(robot, ROBOT_SPEED, 0),
         }
 
         # start ZMQ handling in a separate process

@@ -7,7 +7,7 @@ from thymiodirect import Thymio
 from collections import deque
 from matplotlib import pyplot as plt
 
-port_follower = 45735
+port_follower = 36827
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
@@ -25,14 +25,15 @@ def setUpZMQ():
     global socket
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    # socket.connect(f"tcp://192.168.188.62:{port}")
+
+    # connect to server
     socket.connect(f"tcp://{ip_addr}:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def happiness(leader_pos, leader_orientation, follower_pos, follower_orientation, point_deque):
+def happiness(leader_pos, leader_orientation, follower_pos, point_deque):
     # calculate the length of the line segment between the starting and end points
     segment_length = np.linalg.norm(follower_pos - leader_pos)
 
@@ -73,34 +74,29 @@ def calculate_point(xl, yl, oxl, oyl, point_deque):
     return point_deque
 
 
-def go_to_point(ox, oy, xf, yf, point_deque):
+def go_to_point(ox, oy, xf, yf, x, y):
+    # vector to destination
+    dx = x - xf
+    dy = y - yf
 
-    # loop through queue
-    for i in range(len(point_deque)):
-        x, y = point_deque.popleft()
+    # calculate the angle between the two vectors
+    angle_radians = np.arctan2([oy, dy], [ox, dx])
+    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
 
-        # vector to destination
-        dx = x - xf
-        dy = y - yf
+    # turn left when point on the left side of the robot
+    if angle[0] - angle[1] > 15:
+        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
-        # calculate the angle between the two vectors
-        angle_radians = np.arctan2([oy, dy], [ox, dx])
-        angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+    # turn right when point on the right side of the robot
+    elif angle[0] - angle[1] < -15:
+        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
-        # turn left when point on the left side of the robot
-        if angle[0] - angle[1] > 15:
-            set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+    # go straight when point in front of the robot
+    elif abs(dx) > 15 or abs(dy) > 15:
+        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
-        # turn right when point on the right side of the robot
-        elif angle[0] - angle[1] < -15:
-            set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
-
-        # go straight when point in front of the robot
-        elif abs(dx) > 15 or abs(dy) > 15:
-            set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
-
-        else:
-            stop_robot(robot)
+    else:
+        stop_robot(robot)
 
 
 # Robot controller
@@ -114,6 +110,7 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
+    time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -145,7 +142,6 @@ def main(sim, ip, port):
 
         # Main loop
         while True:
-            time.sleep(0.1)
             # Receive and handle the message from the ZMQ server
             try:
                 message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
@@ -167,8 +163,13 @@ def main(sim, ip, port):
                         leader_pos = np.array([leader_x, leader_y])
                         leader_orientation = np.array([leader_orientation_x, leader_orientation_y])
 
-                        points = happiness(leader_pos, leader_orientation, follower_pos, follower_orientation, points)
-                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, points)
+                        # check if the point deque is empty
+                        if not points:
+                            points = happiness(leader_pos, leader_orientation, follower_pos, points)
+                        target_point = points.popleft()
+                        go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
+                                    *target_point)
+                        # print('point_queue: ', points)
                         # print('leader: ', leader_x, leader_y)
                         # print('follower: ', follower_x, follower_y)
                 else:
