@@ -5,7 +5,7 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port_leader = 37143
+port_leader = 42703
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
