@@ -26,7 +26,7 @@ def getKeyboardInput():
 
     if keys[pygame.K_q]:
         topic = 42
-        message = "off"
+        message = "quit"
     elif keys[pygame.K_s]:
         topic = 42
         message = "on"
@@ -47,6 +47,7 @@ def getKeyboardInput():
     elif keys[pygame.K_RIGHT]:
         message = "tightright"
     else:
+        topic = 42
         message = "stop"
     return topic, message
 

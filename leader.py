@@ -1,11 +1,12 @@
 # import required packages
 import time
 import zmq
-import multiprocessing
+from threading import Thread
 from thymiodirect import Connection
 from thymiodirect import Thymio
+from queue import PriorityQueue
 
-port_leader = 42703
+port_leader = 41349
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
@@ -15,14 +16,13 @@ TURN_SPEED = 100
 
 
 # set up zmq
-def setUpZMQ(queue):
+def zmq_handler(queue):
     port = 5556
 
     # Socket to talk to server
     global socket
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
-    # socket.connect(f"tcp://192.168.188.62:{port}")
     socket.connect(f"tcp://{ip_addr}:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
@@ -32,7 +32,10 @@ def setUpZMQ(queue):
         # Receive and handle the message from the ZMQ server
         try:
             topic, data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
-            queue.put((topic, data))
+            if topic == '42':
+                queue.put((1, data))
+            else:
+                queue.put((2, data))
         except zmq.Again:
             pass
 
@@ -66,7 +69,6 @@ def main(sim, ip, port):
         th.connect()  # Connect to the robot
         robot = th[th.first_node()]  # Create an object to control the robot
         time.sleep(5)  # Delay to allow robot initialization of all variables
-        print(str(th.first_node()))
 
         # Initialize variables
         robot_state = 'off'  # State of the robot (on/off)
@@ -87,9 +89,9 @@ def main(sim, ip, port):
         }
 
         # start ZMQ handling in a separate process
-        message_queue = multiprocessing.Queue()
-        zmq_process = multiprocessing.Process(target=setUpZMQ, args=(message_queue,))
-        zmq_process.start()
+        message_queue = PriorityQueue()
+        zmq_thread = Thread(target=zmq_handler, args=(message_queue,))
+        zmq_thread.start()
 
         print('ready')
 
@@ -100,14 +102,19 @@ def main(sim, ip, port):
             # handle messages from ZMQ
             while not message_queue.empty():
                 topic, data = message_queue.get()
-                # print(topic, data)
 
-                if topic == '42':  # Handle the message for all robots
-                    robot_state = data
-                elif topic == str(th.first_node()):  # Handle the message for this robot
-                    robot_action = data
-                else:
+                if data == 'quit':
                     stop_robot(robot)
+                    break
+                elif data == 'off':
+                    robot_state = 'off'
+                    robot_action = 'stop'
+                elif data == 'on':
+                    robot_state = 'on'
+                elif data == 'stop':
+                    robot_action = 'stop'
+                else:
+                    robot_action = data
 
             # Handle the robot state and set the action
             if robot_state == 'quit':
