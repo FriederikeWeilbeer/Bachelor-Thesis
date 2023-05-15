@@ -143,7 +143,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
 
             # send leader's position and orientation and the followers position and orientation
             # to the follower only when all information is available
-            if all([leader_center, leader_orientation, follower_center, follower_orientation]):
+            if all([leader_center, leader_orientation, follower_center, follower_orientation]) and not message == 'stop':
                 zmq_socket.send_string("%d %s %s %s %s" % (
                     2, leader_center, leader_orientation, follower_center, follower_orientation))
 
