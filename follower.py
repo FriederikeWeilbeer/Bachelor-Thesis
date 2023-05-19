@@ -2,14 +2,14 @@
 import time
 import numpy as np
 import zmq
+from queue import Queue
 from queue import PriorityQueue
 from thymiodirect import Connection
 from thymiodirect import Thymio
-from collections import deque
 from threading import Thread
 from matplotlib import pyplot as plt
 
-port_follower = 34203
+port_follower = 37649
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
@@ -20,7 +20,8 @@ DISTANCE = -100
 
 
 # thread to handle zmq messages
-def zmq_handler(queue):
+def zmq_handler(queue, point_queue):
+    global save_points
     port = 5556
 
     # Socket to talk to server
@@ -33,20 +34,28 @@ def zmq_handler(queue):
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
     while True:
+        # print(save_points)
         # Receive and handle the message from the ZMQ server
         try:
             data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
             topic = data.pop(0)
             if topic == '42':
-                # set a higher priority for strings starting with 42
+                # Set a higher priority for strings starting with 42
                 queue.put((1, data))
-            else:
+                # Empty the point queue
+                point_queue.queue.clear()
+                save_points = False  # Disable saving priority 2 messages
+            elif save_points:
                 queue.put((2, data))
         except zmq.Again:
             pass
+        # print('queue size: ', point_queue.qsize())
+        if point_queue.qsize() < 4:
+            # Set the flag to save priority 2 messages
+            save_points = True
 
 
-def happiness(leader_pos, leader_orientation, follower_pos, point_deque):
+def happiness(leader_pos, leader_orientation, follower_pos, point_queue):
     # calculate the length of the line segment between the starting and end points
     segment_length = np.linalg.norm(follower_pos - leader_pos)
 
@@ -67,53 +76,68 @@ def happiness(leader_pos, leader_orientation, follower_pos, point_deque):
         sine_displacement = np.sin((np.pi / segment_count) * i)
 
         # calculate the final position of the mid-point, displaced by the sine wave
-        final_point = mid_point[0], mid_point[1] + sine_displacement * sign * DISTANCE
+        x, y = mid_point[0], mid_point[1] + sine_displacement * sign * DISTANCE
 
         # add the final point to the deque
-        point_deque.append(final_point)
+        point_queue.put((x, y))
         sign = -sign
 
     # plot the points with matplotlib
     # plt.plot(*zip(*point_deque))
     # plt.show()
-    return point_deque
+    return point_queue
 
 
-def calculate_point(xl, yl, oxl, oyl, point_deque):
-    # calculate the point to follow
-    x = xl + DISTANCE * oxl
-    y = yl + DISTANCE * oyl
-    point_deque.append((x, y))
-    return point_deque
+def calculate_points(leader_pos, leader_orientation, follower_pos, point_queue):
+    # calculate distance between leader and follower
+    segment_length = np.linalg.norm(follower_pos - leader_pos)
+    
+    # calculate 5 points between leader and follower
+    for i in range(5):
+        # calculate the current position along the line segment
+        segment_start = leader_pos - leader_orientation * (i * segment_length / 5)
+        segment_end = leader_pos - leader_orientation * ((i + 1) * segment_length / 5)
+
+        # calculate the mid-point between the start and end of the current segment
+        mid_point = (segment_start + segment_end) / 2
+
+        # calculate the final position of the mid-point, displaced by the sine wave
+        x, y = mid_point[0], mid_point[1]
+
+        # add the final point to the deque
+        point_queue.put((x, y))
+    print('queue', list(point_queue.queue))
+    return point_queue
 
 
-def go_to_point(ox, oy, xf, yf, point_deque):
-    x, y = point_deque.popleft()
-    print("dest point: ", x, y)
-    # vector to destination
-    dx = x - xf
-    dy = y - yf
+def go_to_point(ox, oy, xf, yf, point_queue):
+    while not point_queue.empty():
+        x, y = point_queue.get()
+        # Vector to destination
+        dx = x - xf
+        dy = y - yf
 
-    # calculate the angle between the two vectors
-    angle_radians = np.arctan2([oy, dy], [ox, dx])
-    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+        # Calculate the angle between the two vectors
+        angle_radians = np.arctan2([oy, dy], [ox, dx])
+        angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
 
-    # turn left when point on the left side of the robot
-    if angle[0] - angle[1] > 15:
-        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+        # Turn left when point on the left side of the robot
+        if angle[0] - angle[1] > 15:
+            set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
-    # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -15:
-        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
+        # Turn right when point on the right side of the robot
+        elif angle[0] - angle[1] < -15:
+            set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
-    # go straight when point in front of the robot
-    elif abs(dx) > 15 or abs(dy) > 15:
-        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
-    else:
-        # stop the robot
-        stop_robot(robot)
-        # return the updated deque of points
-    return point_deque
+        # Go straight when point in front of the robot
+        elif abs(dx) > 15 or abs(dy) > 15:
+            set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
+        else:
+            # Stop the robot
+            stop_robot(robot)
+            break  # Exit the loop when the point is reached
+
+    return point_queue
 
 
 # Robot controller
@@ -146,13 +170,26 @@ def main(sim, ip, port):
         robot = th[th.first_node()]  # Create an object to control the robot
         time.sleep(5)  # Delay to allow robot initialization of all variables
 
+        # initialize empty queue for points
+        point_queue = Queue()
+
+        # initialize follower information
+        follower_orientation_x = None
+        follower_orientation_y = None
+        follower_x = None
+        follower_y = None
+
+        # flag to save points of priority 2 on demand
+        save_points = False
+
         # ZMQ setup
         message_queue = PriorityQueue()
-        zmq_thread = Thread(target=zmq_handler, args=(message_queue,))
+        zmq_thread = Thread(target=zmq_handler, args=(message_queue, point_queue))
         zmq_thread.start()
 
-        # initialize deque for points
-        points = deque()
+        # movement thread
+        movement_thread = Thread(target=go_to_point, args=(follower_orientation_x, follower_orientation_y, follower_x, follower_y, point_queue,))
+        movement_thread.start()
 
         # initialize variables
         robot_state = 'off'
@@ -164,7 +201,6 @@ def main(sim, ip, port):
             # Receive and handle the message from the ZMQ server
             while not message_queue.empty():
                 message = message_queue.get()
-                # topic = data.pop(0)
                 data = message[1]
                 print('data: ', data)
                 if data[0] == 'stop':
@@ -180,14 +216,11 @@ def main(sim, ip, port):
                     leader_pos = np.array([leader_x, leader_y])
                     leader_orientation = np.array([leader_orientation_x, leader_orientation_y])
 
-                    # check if the point deque is empty
-                    # if not points:
-                    points = calculate_point(leader_x, leader_y, leader_orientation_x, leader_orientation_y, points)
-                    # points = happiness(leader_pos, leader_orientation, follower_pos, points)
-                    # go to the next point in the deque
-                    go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, points)
-                    print('leader: ', leader_x, leader_y)
-                    print('follower: ', follower_x, follower_y)
+                    point_queue = calculate_points(leader_pos, leader_orientation, follower_pos, point_queue)
+
+                    # point_queue = happiness(leader_pos, leader_orientation, follower_pos, point_queue)
+                    # go to the next point in the queue
+                    go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, point_queue)
                     # while len(points) > 0:
                     #     go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
                     #                 points)
