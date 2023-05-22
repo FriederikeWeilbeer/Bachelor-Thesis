@@ -1,7 +1,9 @@
 # import required packages
+import threading
 import time
 import numpy as np
 import zmq
+from collections import deque
 from queue import Queue
 from queue import PriorityQueue
 from thymiodirect import Connection
@@ -9,7 +11,7 @@ from thymiodirect import Thymio
 from threading import Thread
 from matplotlib import pyplot as plt
 
-port_follower = 37649
+port_follower = 43691
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
@@ -20,7 +22,7 @@ DISTANCE = -100
 
 
 # thread to handle zmq messages
-def zmq_handler(queue, point_queue):
+def zmq_handler(queue, point_deque, stop_event):
     global save_points
     port = 5556
 
@@ -42,15 +44,17 @@ def zmq_handler(queue, point_queue):
             if topic == '42':
                 # Set a higher priority for strings starting with 42
                 queue.put((1, data))
-                # Empty the point queue
-                point_queue.queue.clear()
                 save_points = False  # Disable saving priority 2 messages
+                if data[0] == 'stop':
+                    # Empty the point queue
+                    point_deque.clear()
+                    stop_event.set()
             elif save_points:
                 queue.put((2, data))
         except zmq.Again:
             pass
         # print('queue size: ', point_queue.qsize())
-        if point_queue.qsize() < 4:
+        if len(point_deque) < 4:
             # Set the flag to save priority 2 messages
             save_points = True
 
@@ -88,7 +92,7 @@ def happiness(leader_pos, leader_orientation, follower_pos, point_queue):
     return point_queue
 
 
-def calculate_points(leader_pos, leader_orientation, follower_pos, point_queue):
+def calculate_points(leader_pos, leader_orientation, follower_pos, point_deque):
     # calculate distance between leader and follower
     segment_length = np.linalg.norm(follower_pos - leader_pos)
     
@@ -105,14 +109,14 @@ def calculate_points(leader_pos, leader_orientation, follower_pos, point_queue):
         x, y = mid_point[0], mid_point[1]
 
         # add the final point to the deque
-        point_queue.put((x, y))
-    print('queue', list(point_queue.queue))
-    return point_queue
+        point_deque.append((x, y))
+    print('deque', point_deque)
+    return point_deque
 
 
-def go_to_point(ox, oy, xf, yf, point_queue):
-    while not point_queue.empty():
-        x, y = point_queue.get()
+def go_to_point(ox, oy, xf, yf, point_deque, stop_event):
+    while not len(point_deque) == 0 and not stop_event.is_set():
+        x, y = point_deque[0]
         # Vector to destination
         dx = x - xf
         dy = y - yf
@@ -135,9 +139,7 @@ def go_to_point(ox, oy, xf, yf, point_queue):
         else:
             # Stop the robot
             stop_robot(robot)
-            break  # Exit the loop when the point is reached
-
-    return point_queue
+            point_deque.popleft()
 
 
 # Robot controller
@@ -171,7 +173,7 @@ def main(sim, ip, port):
         time.sleep(5)  # Delay to allow robot initialization of all variables
 
         # initialize empty queue for points
-        point_queue = Queue()
+        point_deque = deque()
 
         # initialize follower information
         follower_orientation_x = None
@@ -184,11 +186,12 @@ def main(sim, ip, port):
 
         # ZMQ setup
         message_queue = PriorityQueue()
-        zmq_thread = Thread(target=zmq_handler, args=(message_queue, point_queue))
+        stop_event = threading.Event()
+        zmq_thread = Thread(target=zmq_handler, args=(message_queue, point_deque, stop_event))
         zmq_thread.start()
 
         # movement thread
-        movement_thread = Thread(target=go_to_point, args=(follower_orientation_x, follower_orientation_y, follower_x, follower_y, point_queue,))
+        movement_thread = Thread(target=go_to_point, args=(follower_orientation_x, follower_orientation_y, follower_x, follower_y, point_deque, stop_event))
         movement_thread.start()
 
         # initialize variables
@@ -216,17 +219,12 @@ def main(sim, ip, port):
                     leader_pos = np.array([leader_x, leader_y])
                     leader_orientation = np.array([leader_orientation_x, leader_orientation_y])
 
-                    point_queue = calculate_points(leader_pos, leader_orientation, follower_pos, point_queue)
+                    point_deque = calculate_points(leader_pos, leader_orientation, follower_pos, point_deque)
 
-                    # point_queue = happiness(leader_pos, leader_orientation, follower_pos, point_queue)
+                    # point_deque = happiness(leader_pos, leader_orientation, follower_pos, point_deque)
                     # go to the next point in the queue
-                    go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, point_queue)
-                    # while len(points) > 0:
-                    #     go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
-                    #                 points)
-                    # print('point_queue: ', points)
-                    # print('leader: ', leader_x, leader_y)
-                    # print('follower: ', follower_x, follower_y)
+                    stop_event.clear()
+                    go_to_point(follower_orientation_x, follower_orientation_y, follower_x, follower_y, point_deque, stop_event)
 
     except (IndexError, ConnectionError) as err:
         if isinstance(err, IndexError):
