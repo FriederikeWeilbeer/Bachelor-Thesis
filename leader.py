@@ -6,7 +6,7 @@ from thymiodirect import Connection
 from thymiodirect import Thymio
 from queue import PriorityQueue
 
-port_leader = 39763
+port_leader = 45615
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
