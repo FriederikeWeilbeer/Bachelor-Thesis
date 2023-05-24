@@ -6,13 +6,13 @@ from thymiodirect import Connection
 from thymiodirect import Thymio
 from queue import PriorityQueue
 
-port_leader = 45615
+port_leader = 33323
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
 
-ROBOT_SPEED = 200
-TURN_SPEED = 100
+ROBOT_SPEED = 100
+TURN_SPEED = 50
 
 
 # set up zmq

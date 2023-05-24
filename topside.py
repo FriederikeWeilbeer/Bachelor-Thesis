@@ -135,11 +135,11 @@ def main(screen_size=(100, 100), zmq_port=5556):
 
             # Get the leader's position and orientation
             leader_center, leader_orientation = get_marker_info(leader_id, ids, corners)
-            print('leader: ', leader_center, leader_orientation)
+            # print('leader: ', leader_center, leader_orientation)
 
             # Get the follower's position and orientation
             follower_center, follower_orientation = get_marker_info(follower_id, ids, corners)
-            print('follower: ', follower_center, follower_orientation)
+            # print('follower: ', follower_center, follower_orientation)
 
             # send leader's position and orientation and the followers position and orientation
             # to the follower only when all information is available
