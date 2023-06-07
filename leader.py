@@ -6,13 +6,13 @@ from thymiodirect import Connection
 from thymiodirect import Thymio
 from queue import PriorityQueue
 
-port_leader = 33323
+port_leader = 35557
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
 
-ROBOT_SPEED = 100
-TURN_SPEED = 50
+ROBOT_SPEED = 200
+TURN_SPEED = 100
 
 
 # set up zmq
@@ -45,6 +45,7 @@ def stop_robot(robot):
     """Set both wheel robot_speeds to 0 to stop the robot"""
     robot['motor.left.target'] = 0
     robot['motor.right.target'] = 0
+    time.sleep(0.1)
 
 
 def set_robot_speed(robot, left_robot_speed, right_robot_speed):
@@ -97,11 +98,11 @@ def main(sim, ip, port):
 
         # Main loop
         while True:
-            time.sleep(0.1)
 
             # handle messages from ZMQ
             while not message_queue.empty():
                 topic, data = message_queue.get()
+                # print("data: ", data)
 
                 if data == 'quit':
                     stop_robot(robot)
@@ -151,3 +152,4 @@ def main(sim, ip, port):
 if __name__ == '__main__':
     print('Starting leader ... ')
     main(sim=simulation, ip=ip_addr, port=port_leader)
+

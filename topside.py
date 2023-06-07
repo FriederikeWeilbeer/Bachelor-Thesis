@@ -10,7 +10,8 @@ import numpy as np
 
 leader_id = 1
 follower_id = 2
-simulation_mode_enabled = True
+simulation_mode_enabled = False
+illustration_mode_enabled = False
 
 
 def setUpZMQ(port):
@@ -93,6 +94,61 @@ def findArucoMarkers(img, arucoDict, arucoParam):
     return corners, ids
 
 
+def calculate_points(start_point, end_point, num_points):
+    start_point = np.array(start_point)
+    end_point = np.array(end_point)
+
+    # segment direction and length
+    segment_direction = end_point - start_point
+    segment_length = np.linalg.norm(segment_direction)
+
+    normalized_direction = segment_direction / segment_length
+
+    t_values = np.linspace(0, 1, num_points)
+
+    trajectory_points = []
+    for t in t_values:
+        displacement = segment_length * t
+        x, y = start_point + displacement * normalized_direction
+        trajectory_points.append((x, y))
+
+    return trajectory_points
+
+
+def calculate_trajectory_points(start_point, end_point, num_points):
+    start_point = np.array(start_point)
+    end_point = np.array(end_point)
+
+    # segment direction and length
+    segment_direction = end_point - start_point
+    segment_length = np.linalg.norm(segment_direction)
+
+    # normalize segment direction
+    normalized_direction = segment_direction / segment_length
+
+    # perpendicular direction to the segment
+    perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
+
+    # parameter values along the trajectory
+    t_values = np.linspace(0, 1, num_points)
+
+    # calculate trajectory points
+    trajectory_points = []
+    for t in t_values:
+        displacement = segment_length * t
+        perpendicular_displacement = (segment_length / np.pi) * np.sin(2 * np.pi * t)
+
+        x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
+        trajectory_points.append((x, y))
+
+    return trajectory_points
+
+
+def mark_points_on_image(img, points):
+    for point in points:
+        cv2.circle(img, (int(point[0]), int(point[1])), 2, (0, 255, 0), -1)
+
+
 def main(screen_size=(100, 100), zmq_port=5556):
     pygame.init()
     screen = pygame.display.set_mode(screen_size)
@@ -117,7 +173,6 @@ def main(screen_size=(100, 100), zmq_port=5556):
             if not simulation_mode_enabled:
                 success, img = cap.read()
                 corners, ids = findArucoMarkers(img, arucoDict, arucoParam)
-                cv2.imshow('image', img)
 
             # handle pygame events and keyboard inputs
             for event in pygame.event.get():
@@ -141,13 +196,32 @@ def main(screen_size=(100, 100), zmq_port=5556):
             follower_center, follower_orientation = get_marker_info(follower_id, ids, corners)
             # print('follower: ', follower_center, follower_orientation)
 
+            # distance between leader and follower
+            if follower_center and leader_center:
+                start_point = [float(coord) for coord in follower_center.split()]
+                end_point = [float(coord) for coord in leader_center.split()]
+                dx = end_point[0] - start_point[0]
+                dy = end_point[1] - start_point[1]
+                distance = np.sqrt(dx ** 2 + dy ** 2)
+
             # send leader's position and orientation and the followers position and orientation
             # to the follower only when all information is available
             if all([leader_center, leader_orientation, follower_center, follower_orientation]) and not message == 'stop':
                 zmq_socket.send_string("%d %s %s %s %s" % (
                     2, leader_center, leader_orientation, follower_center, follower_orientation))
 
+            if illustration_mode_enabled:
+
+                if distance < 200:
+                    # Calculate and mark the trajectory points
+                    trajectory_points = calculate_trajectory_points(start_point, end_point, 12)
+                else:
+                    trajectory_points = calculate_points(start_point, end_point, 12)
+                mark_points_on_image(img, trajectory_points)
+
             pygame.display.update()
+            if not simulation_mode_enabled:
+                cv2.imshow('image', img)
 
         except IndexError:
             # Ignore IndexError exceptions and continue the loop
