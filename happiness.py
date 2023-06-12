@@ -9,10 +9,10 @@ from collections import deque
 from threading import Thread
 from matplotlib import pyplot as plt
 
-port_follower = 37609
+port_follower = 33901
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
-simulation = False
+simulation = True
 
 ROBOT_SPEED = 200
 TURN_SPEED = 100
@@ -74,37 +74,14 @@ def calculate_sine_trajectory(start_point, end_point, num_points, point_deque):
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
-    return point_deque
+    '''
+    print("point_deque", point_deque)
 
-
-'''
-    # plot the points with matplotlib
-    # invert the y-axis to match the coordinate system of the simulation
-    fig, (ax1, ax2) = plt.subplots(1, 2)
-
-    # plot1 plots the thymios positions
-    ax1.plot(start_point[0], start_point[1], 'bo', label='Start Point')
-    ax1.plot(end_point[0], end_point[1], 'ro', label='End Point')
-    ax1.set_title('Thymio positions')
-    ax1.set_xlabel('X')
-    ax1.set_ylabel('Y')
-    ax1.invert_yaxis()
-    ax1.legend()
-
-    # plot2 plots the trajectory
-    x_coords, y_coords = zip(*point_deque)
-    ax2.plot(x_coords, y_coords, 'b--', label='Trajectory')
-    ax2.set_title('Trajectory')
-    ax2.set_xlabel('X')
-    ax2.set_ylabel('Y')
-    ax2.set_xlim(0, 1000)
-    ax2.set_ylim(0, 1000)
-    ax2.invert_yaxis()
-    ax2.legend()
-
-    # display the graph
-    plt.tight_layout()
+    # Plot the points
+    plt.plot(*zip(*point_deque))
+    plt.gca().invert_yaxis()  # Invert the y-axis
     plt.show()'''
+    return point_deque
 
 
 def calculate_points(leader_pos, leader_orientation, follower_pos, point_deque):
@@ -249,7 +226,6 @@ def main(sim, ip, port):
             # Receive and handle the message from the ZMQ server
             while not message_queue.empty():
                 message = message_queue.get()
-                # topic = data.pop(0)
                 data = message[1]
                 # print('data: ', data)
                 if data[0] == 'stop':

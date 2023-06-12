@@ -8,10 +8,12 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 
+from collections import deque
+
 leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
-illustration_mode_enabled = False
+illustration_mode_enabled = True
 
 
 def setUpZMQ(port):
@@ -160,11 +162,14 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoDict = aruco.Dictionary_get(key)
         arucoParam = aruco.DetectorParameters_create()
         # setup video capture
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(2)
         # set camera resolution
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         cap.set(cv2.CAP_PROP_AUTOFOCUS, 0)
+
+        trajectory_points = []
+        clear_list = False
 
     while True:
         try:
@@ -211,12 +216,31 @@ def main(screen_size=(100, 100), zmq_port=5556):
                     2, leader_center, leader_orientation, follower_center, follower_orientation))
 
             if illustration_mode_enabled:
-
-                if distance < 200:
+                if distance < 200 and len(trajectory_points) == 0:
                     # Calculate and mark the trajectory points
-                    trajectory_points = calculate_trajectory_points(start_point, end_point, 12)
-                else:
+                    trajectory_points = calculate_trajectory_points(start_point, end_point, 6)
+                elif distance > 200 and len(trajectory_points) == 0:
                     trajectory_points = calculate_points(start_point, end_point, 12)
+                    line_calculated = True
+
+                # clear list when last point in the list is reached
+                last_entry = trajectory_points[-1]
+                last_entry = np.array(last_entry)
+                dx1 = last_entry[0] - start_point[0]
+                dy1 = last_entry[1] - start_point[1]
+                distance1 = np.sqrt(dx1 ** 2 + dy1 ** 2)
+
+                clear_list = False  # Flag to track whether the list has already been cleared
+
+                # Check if distance is below 50 or distance is below 200 for the first time
+                if distance1 < 50 or (distance < 200 and line_calculated):
+                    clear_list = True
+                    line_calculated = False
+
+                if clear_list:
+                    trajectory_points = []  # Clear the list
+                    clear_list = False
+
                 mark_points_on_image(img, trajectory_points)
 
             pygame.display.update()
