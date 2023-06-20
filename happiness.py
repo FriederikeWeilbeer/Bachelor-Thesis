@@ -2,25 +2,22 @@
 import time
 import numpy as np
 import zmq
-from queue import PriorityQueue
 from thymiodirect import Connection
 from thymiodirect import Thymio
 from collections import deque
-from threading import Thread
-from matplotlib import pyplot as plt
 
-port_follower = 33901
+port_follower = 36965
 ip_addr = 'localhost'
 # ip_addr = '192.168.188.62'
 simulation = True
 
 ROBOT_SPEED = 200
-TURN_SPEED = 100
+TURN_SPEED = 150
 DISTANCE = -100
 
 
 # thread to handle zmq messages
-def zmq_handler(queue, point_deque):
+def setup_zmq():
     port = 5556
 
     # Socket to talk to server
@@ -31,23 +28,6 @@ def zmq_handler(queue, point_deque):
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
-
-    while True:
-        # Receive and handle the message from the ZMQ server
-        try:
-            data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
-            # print('data: ', data)
-            topic = data.pop(0)
-            if topic == '42':
-                # set a higher priority for strings starting with 42
-                queue.put((1, data))
-                if data[0] == 'stop':
-                    stop_robot(robot)
-                point_deque.clear()
-            else:
-                queue.put((2, data))
-        except zmq.Again:
-            pass
 
 
 def calculate_sine_trajectory(start_point, end_point, num_points, point_deque):
@@ -74,34 +54,8 @@ def calculate_sine_trajectory(start_point, end_point, num_points, point_deque):
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
-    '''
-    print("point_deque", point_deque)
 
-    # Plot the points
-    plt.plot(*zip(*point_deque))
-    plt.gca().invert_yaxis()  # Invert the y-axis
-    plt.show()'''
-    return point_deque
-
-
-def calculate_points(leader_pos, leader_orientation, follower_pos, point_deque):
-    # calculate distance between leader and follower
-    segment_length = np.linalg.norm(follower_pos - leader_pos)
-
-    # calculate 5 points between leader and follower
-    for i in range(10):
-        # calculate the current position along the line segment
-        segment_start = leader_pos - leader_orientation * (i * segment_length / 5)
-        segment_end = leader_pos - leader_orientation * ((i + 1) * segment_length / 5)
-
-        # calculate the mid-point between the start and end of the current segment
-        mid_point = (segment_start + segment_end) / 2
-
-        # calculate the final position of the mid-point, displaced by the sine wave
-        x, y = mid_point[0], mid_point[1]
-
-        # add the final point to the deque
-        point_deque.append((x, y))
+    print(point_deque)
     return point_deque
 
 
@@ -109,25 +63,26 @@ def catch_up(ox, oy, xf, yf, x, y):
     # vector to destination
     dx = x - xf
     dy = y - yf
+    distance = np.linalg.norm([dx, dy])
 
     # calculate the angle between the two vectors
-    angle_radians = np.arctan2([oy, dy], [ox, dx])
-    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+    angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
+    angle_degrees = np.rad2deg(angle_radians)
+
+    # Normalize the angle between -180 and 180 degrees
+    angle_degrees = (angle_degrees + 180) % 360 - 180
+    print('angle', angle_degrees)
 
     # turn left when point on the left side of the robot
-    if angle[0] - angle[1] > 15:
+    if angle_degrees > 15:
         set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
     # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -15:
+    elif angle_degrees < -15:
         set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
-    # go straight when point in front of the robot
-    elif abs(dx) > 15 or abs(dy) > 15:
+    elif distance > 200:
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
-
-    if abs(dx) < 100 and abs(dy) < 100:
-        return
 
     else:
         # stop the robot
@@ -139,26 +94,28 @@ def follow_trajectory(ox, oy, xf, yf, points):
     # get the first point in the deque
     x, y = points[0]
 
-    print(f'x: {x}, y: {y}')
-    # vector to destination
     dx = x - xf
     dy = y - yf
 
     # calculate the angle between the two vectors
-    angle_radians = np.arctan2([oy, dy], [ox, dx])
-    angle = [np.rad2deg(angle_radians[0]), np.rad2deg(angle_radians[1])]
+    angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
+    angle_degrees = np.rad2deg(angle_radians)
+
+    # Normalize the angle between -180 and 180 degrees
+    angle_degrees = (angle_degrees + 180) % 360 - 180
+    print('angle: ', angle_degrees)
 
     if len(points) == 0:
         stop_robot(robot)
         return points
 
     # turn left when point on the left side of the robot
-    elif angle[0] - angle[1] > 15 and len(points) > 0:
-        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+    if angle_degrees > 15 and len(points) > 0:
+        set_robot_speed(robot, 0, TURN_SPEED)
 
     # turn right when point on the right side of the robot
-    elif angle[0] - angle[1] < -15 and len(points) > 0:
-        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
+    elif angle_degrees < -15 and len(points) > 0:
+        set_robot_speed(robot, TURN_SPEED, 0)
 
     # go straight when point in front of the robot
     elif abs(dx) > 15 or abs(dy) > 15 and len(points) > 0:
@@ -169,10 +126,6 @@ def follow_trajectory(ox, oy, xf, yf, points):
         points.popleft()
         if len(points) > 0:
             x, y = points[0]
-
-    else:
-        # stop the robot
-        stop_robot(robot)
 
     # return the updated deque of points
     return points
@@ -189,7 +142,6 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
-    time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -212,10 +164,7 @@ def main(sim, ip, port):
         points = deque()
 
         # ZMQ setup
-        message_queue = PriorityQueue()
-        zmq_thread = Thread(target=zmq_handler, args=(message_queue, points))
-        zmq_thread.start()
-
+        setup_zmq()
         # initialize variables
         robot_state = 'off'
 
@@ -223,46 +172,55 @@ def main(sim, ip, port):
 
         # Main loop
         while True:
+            time.sleep(0.1)
             # Receive and handle the message from the ZMQ server
-            while not message_queue.empty():
-                message = message_queue.get()
-                data = message[1]
-                # print('data: ', data)
-                if data[0] == 'stop':
-                    stop_robot(robot)
+            try:
+                message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
+                topic = message[0]
+                # print('message: ', message)
+                # messages for all robots
+                if topic == '42':
                     points.clear()
-                elif data[0] == 'on':
-                    robot_state = 'on'
-                elif data[0] == 'off':
-                    robot_state = 'off'
-                elif message[0] != 1 and robot_state == 'on':
+                    if message[1] == 'quit':
+                        robot_state = 'off'
+                        stop_robot(robot)
+                        break
+                    elif message[1] == 'on':
+                        robot_state = 'on'
+                    elif message[1] == 'stop':
+                        stop_robot(robot)
+
+                # messages for this particular robot
+                elif topic == '2' and robot_state == 'on':
                     leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
-                        float, data)
+                        float, message[1:])
 
                     # distance between the two robots
                     dx = leader_x - follower_x
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
-                    print('distance: ', distance)
 
-                    follower_orientation = np.array([follower_orientation_x, follower_orientation_y])
-                    follower_pos = np.array([follower_x, follower_y])
-                    leader_pos = np.array([leader_x, leader_y])
-                    leader_orientation = np.array([leader_orientation_x, leader_orientation_y])
+                    trajectory_start_point = np.array([follower_x + 10, follower_y + 10])
 
                     # catch up when distance gets too big
-                    if distance > 200:
+                    if distance > 300:
                         catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y, leader_x,
                                  leader_y)
 
                     # check if the point deque is empty
-                    elif len(points) == 0 and distance < 200:
-                        # points = calculate_points(leader_pos, leader_orientation, follower_pos, points)
-                        points = calculate_sine_trajectory(follower_pos, leader_pos, 6, points)
+                    elif len(points) == 0 and distance < 300:
+                        leader_pos = np.array([leader_x, leader_y])
+                        points = calculate_sine_trajectory(trajectory_start_point, leader_pos, 6, points)
 
-                    elif len(points) > 0 and distance < 200:
+                    elif len(points) > 0 and distance < 300:
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
                                                    follower_y, points)
+
+            except zmq.Again:
+                pass
+            except (ValueError, TypeError, IndexError) as e:
+                print(f"Error: {e}")
+                pass
 
     except (IndexError, ConnectionError) as err:
         if isinstance(err, IndexError):

@@ -8,8 +8,6 @@ import cv2
 import cv2.aruco as aruco
 import numpy as np
 
-from collections import deque
-
 leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
@@ -162,7 +160,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoDict = aruco.Dictionary_get(key)
         arucoParam = aruco.DetectorParameters_create()
         # setup video capture
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         # set camera resolution
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -170,6 +168,8 @@ def main(screen_size=(100, 100), zmq_port=5556):
 
         trajectory_points = []
         clear_list = False
+        prev_message = None
+        count = 0
 
     while True:
         try:
@@ -191,36 +191,57 @@ def main(screen_size=(100, 100), zmq_port=5556):
             if cv2.waitKey(1) & 0xFF == 27:
                 break
 
-            zmq_socket.send_string("%d %s" % (topic, message))
+            # check if the message is different from the previous one
+            if message != prev_message:
+                prev_message = message
+                zmq_socket.send_string("%d %s" % (topic, message))
 
             # Get the leader's position and orientation
             leader_center, leader_orientation = get_marker_info(leader_id, ids, corners)
-            # print('leader: ', leader_center, leader_orientation)
+            # print('leader: ', leader_center)
 
             # Get the follower's position and orientation
             follower_center, follower_orientation = get_marker_info(follower_id, ids, corners)
-            # print('follower: ', follower_center, follower_orientation)
+            # print('follower: ', follower_center)
 
-            # distance between leader and follower
-            if follower_center and leader_center:
+            # angle between follower orientation and robots connection line
+            '''if follower_center and leader_center:
                 start_point = [float(coord) for coord in follower_center.split()]
                 end_point = [float(coord) for coord in leader_center.split()]
                 dx = end_point[0] - start_point[0]
                 dy = end_point[1] - start_point[1]
-                distance = np.sqrt(dx ** 2 + dy ** 2)
+                follower_orientation_ang = [float(coord) for coord in follower_orientation.split()]
+                angle_rad = np.arctan2(follower_orientation_ang[1], follower_orientation_ang[0]) - np.arctan2(dy, dx)
+                angle_degrees = np.rad2deg(angle_rad)
+                angle_degrees = (angle_degrees + 180) % 360 - 180
+
+                print('angle', angle_degrees)'''
+
+            # distance between leader and follower
+            if not simulation_mode_enabled:
+                if follower_center and leader_center:
+                    start_point = [float(coord) for coord in follower_center.split()]
+                    end_point = [float(coord) for coord in leader_center.split()]
+                    dx = end_point[0] - start_point[0]
+                    dy = end_point[1] - start_point[1]
+                    distance = np.sqrt(dx ** 2 + dy ** 2)
+
+                # init flags
+                line_calculated = False
 
             # send leader's position and orientation and the followers position and orientation
-            # to the follower only when all information is available
-            if all([leader_center, leader_orientation, follower_center, follower_orientation]) and not message == 'stop':
+            # to the follower only when all information is available and a key is pressed
+            if all([leader_center, leader_orientation, follower_center, follower_orientation]) and not message == 'stop' and not message == 'on' and count > 30:
                 zmq_socket.send_string("%d %s %s %s %s" % (
                     2, leader_center, leader_orientation, follower_center, follower_orientation))
+                count = 0
 
             if illustration_mode_enabled:
-                if distance < 200 and len(trajectory_points) == 0:
+                if distance < 300 and len(trajectory_points) == 0:
                     # Calculate and mark the trajectory points
                     trajectory_points = calculate_trajectory_points(start_point, end_point, 6)
-                elif distance > 200 and len(trajectory_points) == 0:
-                    trajectory_points = calculate_points(start_point, end_point, 12)
+                elif distance > 300 and len(trajectory_points) == 0:
+                    trajectory_points = calculate_points(start_point, end_point, 6)
                     line_calculated = True
 
                 # clear list when last point in the list is reached
@@ -246,6 +267,8 @@ def main(screen_size=(100, 100), zmq_port=5556):
             pygame.display.update()
             if not simulation_mode_enabled:
                 cv2.imshow('image', img)
+
+            count += 1
 
         except IndexError:
             # Ignore IndexError exceptions and continue the loop
