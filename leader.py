@@ -11,7 +11,7 @@ ip_addr = 'localhost'
 simulation = True
 
 ROBOT_SPEED = 200
-TURN_SPEED = 100
+TURN_SPEED = 150
 
 
 # set up zmq

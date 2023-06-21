@@ -12,6 +12,7 @@ leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
 illustration_mode_enabled = True
+emotion = 'happiness'
 
 
 def setUpZMQ(port):
@@ -134,13 +135,25 @@ def calculate_trajectory_points(start_point, end_point, num_points):
 
     # calculate trajectory points
     trajectory_points = []
-    for t in t_values:
-        displacement = segment_length * t
-        perpendicular_displacement = (segment_length / np.pi) * np.sin(2 * np.pi * t)
+    if emotion == 'happiness':
+        for t in t_values:
+            displacement = segment_length * t
+            perpendicular_displacement = (segment_length / (2.5 * np.pi)) * np.sin(4 * np.pi * t)
 
-        x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
-        trajectory_points.append((x, y))
+            x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
+            trajectory_points.append((x, y))
 
+    if emotion == 'anger':
+        direction = 1
+        for t in t_values:
+            displacement = segment_length * t
+            angular_displacement = (segment_length / np.pi) * np.abs(np.sin(np.pi * t))
+
+            x, y = start_point + displacement * normalized_direction + (
+                        angular_displacement * direction) * perpendicular_direction
+            trajectory_points.append((x, y))
+
+            direction *= -1
     return trajectory_points
 
 
@@ -160,7 +173,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoDict = aruco.Dictionary_get(key)
         arucoParam = aruco.DetectorParameters_create()
         # setup video capture
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(2)
         # set camera resolution
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -204,19 +217,6 @@ def main(screen_size=(100, 100), zmq_port=5556):
             follower_center, follower_orientation = get_marker_info(follower_id, ids, corners)
             # print('follower: ', follower_center)
 
-            # angle between follower orientation and robots connection line
-            '''if follower_center and leader_center:
-                start_point = [float(coord) for coord in follower_center.split()]
-                end_point = [float(coord) for coord in leader_center.split()]
-                dx = end_point[0] - start_point[0]
-                dy = end_point[1] - start_point[1]
-                follower_orientation_ang = [float(coord) for coord in follower_orientation.split()]
-                angle_rad = np.arctan2(follower_orientation_ang[1], follower_orientation_ang[0]) - np.arctan2(dy, dx)
-                angle_degrees = np.rad2deg(angle_rad)
-                angle_degrees = (angle_degrees + 180) % 360 - 180
-
-                print('angle', angle_degrees)'''
-
             # distance between leader and follower
             if not simulation_mode_enabled:
                 if follower_center and leader_center:
@@ -239,7 +239,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
             if illustration_mode_enabled:
                 if distance < 300 and len(trajectory_points) == 0:
                     # Calculate and mark the trajectory points
-                    trajectory_points = calculate_trajectory_points(start_point, end_point, 6)
+                    trajectory_points = calculate_trajectory_points(start_point, end_point, 10)
                 elif distance > 300 and len(trajectory_points) == 0:
                     trajectory_points = calculate_points(start_point, end_point, 6)
                     line_calculated = True
@@ -254,7 +254,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
                 clear_list = False  # Flag to track whether the list has already been cleared
 
                 # Check if distance is below 50 or distance is below 200 for the first time
-                if distance1 < 50 or (distance < 200 and line_calculated):
+                if distance1 < 40 or (distance < 200 and line_calculated):
                     clear_list = True
                     line_calculated = False
 
