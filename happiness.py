@@ -14,7 +14,6 @@ simulation = False
 TURN_SPEED = 100
 ROBOT_SPEED = 200
 CATCH_UP_SPEED = 300
-DISTANCE = -100
 
 
 # thread to handle zmq messages
@@ -48,10 +47,15 @@ def calculate_happiness_trajectory(start_point, end_point, num_points, point_deq
     # parameter values along the trajectory
     t_values = np.linspace(0, 1, num_points)
 
+    freq = (segment_length / (2.5 * np.pi))
+    # freq = (segment_length / (1.3 * np.pi))
+    amp = 4
+    # amp = 2
+
     # calculate trajectory points
     for t in t_values:
         displacement = segment_length * t
-        perpendicular_displacement = (segment_length / (2.5 * np.pi)) * np.sin(4 * np.pi * t)
+        perpendicular_displacement = amp * np.sin(freq * np.pi * t)
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
@@ -79,7 +83,7 @@ def catch_up(ox, oy, xf, yf, x, y):
 
     # turn right when point on the right side of the robot
     elif angle_degrees < -15:
-        set_robot_speed(robot, ROBOT_SPEED, -ROBOT_SPEED)
+        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     else:
         set_robot_speed(robot, CATCH_UP_SPEED, CATCH_UP_SPEED)
@@ -118,7 +122,7 @@ def follow_trajectory(ox, oy, xf, yf, points):
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     # when point reached, remove it from the deque
-    if abs(dx) < 30 and abs(dy) < 30 and len(points) > 0:
+    if abs(dx) < 20 and abs(dy) < 20 and len(points) > 0:
         points.popleft()
         if len(points) > 0:
             x, y = points[0]
@@ -196,19 +200,22 @@ def main(sim, ip, port):
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
-                    trajectory_start_point = np.array([follower_x + 10, follower_y + 10])
+                    trajectory_start_point = np.array([follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
+                    trajectory_end_point = np.array([leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
 
                     # catch up when distance gets too big
-                    if distance > 300:
-                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y, leader_x,
-                                 leader_y)
+                    if distance < 30:
+                        stop_robot(robot)
+
+                    elif distance > 200:
+                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y, trajectory_end_point[0], trajectory_end_point[1])
 
                     # check if the point deque is empty
-                    elif len(points) == 0 and distance < 300:
-                        leader_pos = np.array([leader_x, leader_y])
-                        points = calculate_happiness_trajectory(trajectory_start_point, leader_pos, 10, points)
+                    elif len(points) == 0 and distance < 200:
+                        # calculate frequency and amplitude of the happiness trajectory
+                        points = calculate_happiness_trajectory(trajectory_start_point, trajectory_end_point, 6, points)
 
-                    elif len(points) > 0 and distance < 300:
+                    elif len(points) > 0 and distance < 200:
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
                                                    follower_y, points)
 

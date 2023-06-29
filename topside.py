@@ -12,7 +12,7 @@ leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
 illustration_mode_enabled = True
-emotion = 'happiness'
+emotion = 'anger'
 
 
 def setUpZMQ(port):
@@ -138,7 +138,7 @@ def calculate_trajectory_points(start_point, end_point, num_points):
     if emotion == 'happiness':
         for t in t_values:
             displacement = segment_length * t
-            perpendicular_displacement = (segment_length / (2.5 * np.pi)) * np.sin(4 * np.pi * t)
+            perpendicular_displacement = (segment_length / (1.3 * np.pi)) * np.sin(2 * np.pi * t)
 
             x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
             trajectory_points.append((x, y))
@@ -168,12 +168,18 @@ def main(screen_size=(100, 100), zmq_port=5556):
     setUpZMQ(zmq_port)
 
     if not simulation_mode_enabled:
+
         # setup aruco Dictionary
         key = getattr(aruco, f'DICT_{4}X{4}_{100}')
         arucoDict = aruco.Dictionary_get(key)
         arucoParam = aruco.DetectorParameters_create()
+
         # setup video capture
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
+        # Check if the webcam is opened correctly
+        if not cap.isOpened():
+            raise IOError("Cannot open webcam")
+
         # set camera resolution
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
@@ -190,6 +196,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
                 corners, ids = aruco_detection.getArucoInfo()
             if not simulation_mode_enabled:
                 success, img = cap.read()
+                # cv2.imshow('image', img)
                 corners, ids = findArucoMarkers(img, arucoDict, arucoParam)
 
             # handle pygame events and keyboard inputs
@@ -222,6 +229,13 @@ def main(screen_size=(100, 100), zmq_port=5556):
                 if follower_center and leader_center:
                     start_point = [float(coord) for coord in follower_center.split()]
                     end_point = [float(coord) for coord in leader_center.split()]
+                    leader_orientation_draw = [float(coord) for coord in leader_orientation.split()]
+                    follower_orientation_draw = [float(coord) for coord in follower_orientation.split()]
+                    trajectory_start_point = np.array(
+                        [start_point[0] + 10 * follower_orientation_draw[0], start_point[1] + 10 * follower_orientation_draw[1]])
+                    trajectory_end_point = np.array(
+                        [end_point[0] - 30 * leader_orientation_draw[0], end_point[1] - 30 * leader_orientation_draw[1]])
+
                     dx = end_point[0] - start_point[0]
                     dy = end_point[1] - start_point[1]
                     distance = np.sqrt(dx ** 2 + dy ** 2)
@@ -237,11 +251,11 @@ def main(screen_size=(100, 100), zmq_port=5556):
                 count = 0
 
             if illustration_mode_enabled:
-                if distance < 300 and len(trajectory_points) == 0:
+                if distance < 250 and len(trajectory_points) == 0:
                     # Calculate and mark the trajectory points
-                    trajectory_points = calculate_trajectory_points(start_point, end_point, 10)
-                elif distance > 300 and len(trajectory_points) == 0:
-                    trajectory_points = calculate_points(start_point, end_point, 6)
+                    trajectory_points = calculate_trajectory_points(trajectory_start_point, trajectory_end_point, 5)
+                elif distance > 250 and len(trajectory_points) == 0:
+                    trajectory_points = calculate_points(start_point, end_point, 4)
                     line_calculated = True
 
                 # clear list when last point in the list is reached
@@ -254,7 +268,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
                 clear_list = False  # Flag to track whether the list has already been cleared
 
                 # Check if distance is below 50 or distance is below 200 for the first time
-                if distance1 < 40 or (distance < 200 and line_calculated):
+                if distance1 < 30 or (distance < 250 and line_calculated):
                     clear_list = True
                     line_calculated = False
 
