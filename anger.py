@@ -11,9 +11,10 @@ port_follower = 36965
 ip_addr = '192.168.188.62'
 simulation = False
 
-ROBOT_SPEED = 250
-CATCH_UP_SPEED = 300
-TURN_SPEED = 100
+ROBOT_SPEED = 300
+CATCH_UP_SPEED = 400
+TURN_SPEED = 150
+SLOW_TURN = 60
 
 
 # thread to handle zmq messages
@@ -30,7 +31,7 @@ def setup_zmq():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def calculate_anger_trajectory(start_point, end_point, num_points, point_deque):
+def calculate_anger_trajectory(start_point, end_point, point_deque):
     start_point = np.array(start_point)
     end_point = np.array(end_point)
 
@@ -45,19 +46,17 @@ def calculate_anger_trajectory(start_point, end_point, num_points, point_deque):
     perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
 
     # parameter values along the trajectory
-    t_values = np.linspace(0, 1, num_points)
+    t_values = [0.7, 1]
 
     # calculate trajectory points
-    direction = 1
+    angular_displacement = 40
     for t in t_values:
         displacement = segment_length * t
-        angular_displacement = (segment_length / np.pi) * np.abs(np.sin(np.pi * t))
 
-        x, y = start_point + displacement * normalized_direction + (
-                angular_displacement * direction) * perpendicular_direction
+        x, y = start_point + displacement * normalized_direction + angular_displacement * perpendicular_direction
         point_deque.append((x, y))
 
-        direction *= -1
+        angular_displacement *= -1
 
     return point_deque
 
@@ -76,12 +75,12 @@ def catch_up(ox, oy, xf, yf, x, y):
     # print('angle', angle_degrees)
 
     # turn left when point on the left side of the robot
-    if angle_degrees > 5:
-        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+    if angle_degrees > 10:
+        set_robot_speed(robot, -SLOW_TURN, SLOW_TURN)
 
     # turn right when point on the right side of the robot
-    elif angle_degrees < -5:
-        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
+    elif angle_degrees < -10:
+        set_robot_speed(robot, SLOW_TURN, -SLOW_TURN)
 
     else:
         set_robot_speed(robot, CATCH_UP_SPEED, CATCH_UP_SPEED)
@@ -94,10 +93,6 @@ def follow_trajectory(ox, oy, xf, yf, points):
 
     dx = x - xf
     dy = y - yf
-    '''print('dx: ', abs(dx))
-    print('dy: ', abs(dy))
-    print(points)
-    print('x, y: ', x, y)'''
 
     # calculate the angle between the two vectors
     angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
@@ -124,7 +119,7 @@ def follow_trajectory(ox, oy, xf, yf, points):
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     # when point reached, remove it from the deque
-    if abs(dx) < 20 and abs(dy) < 20 and len(points) > 0:
+    if abs(dx) < 15 and abs(dy) < 15 and len(points) > 0:
         points.popleft()
         if len(points) > 0:
             x, y = points[0]
@@ -203,9 +198,9 @@ def main(sim, ip, port):
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
                     trajectory_start_point = np.array(
-                        [follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
+                        [follower_x + 40 * follower_orientation_x, follower_y + 40 * follower_orientation_y])
                     trajectory_end_point = np.array(
-                        [leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
+                        [leader_x - 50 * leader_orientation_x, leader_y - 50 * leader_orientation_y])
 
                     # stop when distance gets too small
                     if distance < 30:
@@ -214,9 +209,12 @@ def main(sim, ip, port):
                     if distance > 250:
                         catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
                                  trajectory_end_point[0], trajectory_end_point[1])
+
+                    elif distance < 90:
+                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y,trajectory_end_point[0], trajectory_end_point[1])
                     # check if the point deque is empty
                     elif len(points) == 0 and distance < 250:
-                        points = calculate_anger_trajectory(trajectory_start_point, trajectory_end_point, 4, points)
+                        points = calculate_anger_trajectory(trajectory_start_point, trajectory_end_point, points)
 
                     elif len(points) > 0 and distance < 250:
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,

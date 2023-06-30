@@ -47,10 +47,8 @@ def calculate_happiness_trajectory(start_point, end_point, num_points, point_deq
     # parameter values along the trajectory
     t_values = np.linspace(0, 1, num_points)
 
-    freq = (segment_length / (2.5 * np.pi))
-    # freq = (segment_length / (1.3 * np.pi))
-    amp = 4
-    # amp = 2
+    freq = (segment_length / (1.3 * np.pi))
+    amp = 2
 
     # calculate trajectory points
     for t in t_values:

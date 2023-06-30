@@ -13,6 +13,8 @@ follower_id = 2
 simulation_mode_enabled = False
 illustration_mode_enabled = True
 emotion = 'anger'
+#emotion = 'happiness'
+#emotion = 'sadness'
 
 
 def setUpZMQ(port):
@@ -116,7 +118,7 @@ def calculate_points(start_point, end_point, num_points):
     return trajectory_points
 
 
-def calculate_trajectory_points(start_point, end_point, num_points):
+def calculate_trajectory_points(start_point, end_point):
     start_point = np.array(start_point)
     end_point = np.array(end_point)
 
@@ -131,6 +133,12 @@ def calculate_trajectory_points(start_point, end_point, num_points):
     perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
 
     # parameter values along the trajectory
+    if emotion == 'happiness':
+        num_points = 6
+    elif emotion == 'anger':
+        num_points = 2
+    elif emotion == 'sadness':
+        num_points = 12
     t_values = np.linspace(0, 1, num_points)
 
     # calculate trajectory points
@@ -144,16 +152,22 @@ def calculate_trajectory_points(start_point, end_point, num_points):
             trajectory_points.append((x, y))
 
     if emotion == 'anger':
-        direction = 1
+        t_values = [0.7, 1]
+        angular_displacement = 50
         for t in t_values:
             displacement = segment_length * t
-            angular_displacement = (segment_length / np.pi) * np.abs(np.sin(np.pi * t))
-
-            x, y = start_point + displacement * normalized_direction + (
-                        angular_displacement * direction) * perpendicular_direction
+            x, y = start_point + displacement * normalized_direction + angular_displacement * perpendicular_direction
             trajectory_points.append((x, y))
 
-            direction *= -1
+            angular_displacement *= -1
+
+    if emotion == 'sadness':
+        for t in t_values:
+            displacement = segment_length * t
+            perpendicular_displacement = (segment_length / (2.5 * np.pi)) * np.sin(2 * np.pi * t)
+
+            x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
+            trajectory_points.append((x, y))
     return trajectory_points
 
 
@@ -175,7 +189,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoParam = aruco.DetectorParameters_create()
 
         # setup video capture
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(2)
         # Check if the webcam is opened correctly
         if not cap.isOpened():
             raise IOError("Cannot open webcam")
@@ -232,9 +246,9 @@ def main(screen_size=(100, 100), zmq_port=5556):
                     leader_orientation_draw = [float(coord) for coord in leader_orientation.split()]
                     follower_orientation_draw = [float(coord) for coord in follower_orientation.split()]
                     trajectory_start_point = np.array(
-                        [start_point[0] + 10 * follower_orientation_draw[0], start_point[1] + 10 * follower_orientation_draw[1]])
+                        [start_point[0] + 40 * follower_orientation_draw[0], start_point[1] + 40 * follower_orientation_draw[1]])
                     trajectory_end_point = np.array(
-                        [end_point[0] - 30 * leader_orientation_draw[0], end_point[1] - 30 * leader_orientation_draw[1]])
+                        [end_point[0] - 50 * leader_orientation_draw[0], end_point[1] - 50 * leader_orientation_draw[1]])
 
                     dx = end_point[0] - start_point[0]
                     dy = end_point[1] - start_point[1]
@@ -245,7 +259,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
 
             # send leader's position and orientation and the followers position and orientation
             # to the follower only when all information is available and a key is pressed
-            if all([leader_center, leader_orientation, follower_center, follower_orientation]) and not message == 'stop' and not message == 'on' and count > 30:
+            if all([leader_center, leader_orientation, follower_center, follower_orientation]) and not message == 'stop' and not message == 'on' and count > 5:
                 zmq_socket.send_string("%d %s %s %s %s" % (
                     2, leader_center, leader_orientation, follower_center, follower_orientation))
                 count = 0
@@ -253,9 +267,9 @@ def main(screen_size=(100, 100), zmq_port=5556):
             if illustration_mode_enabled:
                 if distance < 250 and len(trajectory_points) == 0:
                     # Calculate and mark the trajectory points
-                    trajectory_points = calculate_trajectory_points(trajectory_start_point, trajectory_end_point, 5)
+                    trajectory_points = calculate_trajectory_points(trajectory_start_point, trajectory_end_point)
                 elif distance > 250 and len(trajectory_points) == 0:
-                    trajectory_points = calculate_points(start_point, end_point, 4)
+                    trajectory_points = calculate_points(trajectory_start_point, trajectory_end_point, 4)
                     line_calculated = True
 
                 # clear list when last point in the list is reached

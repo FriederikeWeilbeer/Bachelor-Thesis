@@ -11,8 +11,9 @@ port_follower = 36965
 ip_addr = '192.168.188.62'
 simulation = False
 
-ROBOT_SPEED = 200
-DISTANCE = -100
+TURN_SPEED = 90
+ROBOT_SPEED = 150
+CATCH_UP_SPEED = 200
 
 
 # thread to handle zmq messages
@@ -46,10 +47,13 @@ def calculate_sadness_trajectory(start_point, end_point, num_points, point_deque
     # parameter values along the trajectory
     t_values = np.linspace(0, 1, num_points)
 
+    freq = (segment_length / (2.5 * np.pi))
+    amp = 2
+
     # calculate trajectory points
     for t in t_values:
         displacement = segment_length * t
-        perpendicular_displacement = (segment_length / (2 * np.pi)) * np.sin(2 * np.pi * t)
+        perpendicular_displacement = amp * np.sin(freq * np.pi * t)
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
@@ -62,7 +66,6 @@ def catch_up(ox, oy, xf, yf, x, y):
     # vector to destination
     dx = x - xf
     dy = y - yf
-    distance = np.linalg.norm([dx, dy])
 
     # calculate the angle between the two vectors
     angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
@@ -74,18 +77,14 @@ def catch_up(ox, oy, xf, yf, x, y):
 
     # turn left when point on the left side of the robot
     if angle_degrees > 15:
-        set_robot_speed(robot, -ROBOT_SPEED, ROBOT_SPEED)
+        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
     # turn right when point on the right side of the robot
     elif angle_degrees < -15:
-        set_robot_speed(robot, ROBOT_SPEED, -ROBOT_SPEED)
-
-    elif distance > 200:
-        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
+        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     else:
-        # stop the robot
-        stop_robot(robot)
+        set_robot_speed(robot, CATCH_UP_SPEED, CATCH_UP_SPEED)
         return
 
 
@@ -110,18 +109,18 @@ def follow_trajectory(ox, oy, xf, yf, points):
 
     # turn left when point on the left side of the robot
     if angle_degrees > 15 and len(points) > 0:
-        set_robot_speed(robot, 0, ROBOT_SPEED)
+        set_robot_speed(robot, 20, ROBOT_SPEED)
 
     # turn right when point on the right side of the robot
     elif angle_degrees < -15 and len(points) > 0:
-        set_robot_speed(robot, ROBOT_SPEED, 0)
+        set_robot_speed(robot, ROBOT_SPEED, 20)
 
     # go straight when point in front of the robot
     elif abs(dx) > 15 or abs(dy) > 15 and len(points) > 0:
         set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
     # when point reached, remove it from the deque
-    if abs(dx) < 30 and abs(dy) < 30 and len(points) > 0:
+    if abs(dx) < 15 and abs(dy) < 15 and len(points) > 0:
         points.popleft()
         if len(points) > 0:
             x, y = points[0]
@@ -199,19 +198,22 @@ def main(sim, ip, port):
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
-                    trajectory_start_point = np.array([follower_x + 10, follower_y + 10])
+                    trajectory_start_point = np.array([follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
+                    trajectory_end_point = np.array([leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
 
                     # catch up when distance gets too big
-                    if distance > 300:
-                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y, leader_x,
-                                 leader_y)
+                    if distance < 30:
+                        stop_robot(robot)
+
+                    elif distance > 200:
+                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y, trajectory_end_point[0], trajectory_end_point[1])
 
                     # check if the point deque is empty
-                    elif len(points) == 0 and distance < 300:
-                        leader_pos = np.array([leader_x, leader_y])
-                        points = calculate_sadness_trajectory(trajectory_start_point, leader_pos, 6, points)
+                    elif len(points) == 0 and distance < 200:
+                        # calculate frequency and amplitude of the happiness trajectory
+                        points = calculate_sadness_trajectory(trajectory_start_point, trajectory_end_point, 6, points)
 
-                    elif len(points) > 0 and distance < 300:
+                    elif len(points) > 0 and distance < 200:
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
                                                    follower_y, points)
 
