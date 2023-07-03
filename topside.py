@@ -12,8 +12,8 @@ leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
 illustration_mode_enabled = True
-emotion = 'anger'
-#emotion = 'happiness'
+#emotion = 'anger'
+emotion = 'happiness'
 #emotion = 'sadness'
 
 
@@ -138,7 +138,7 @@ def calculate_trajectory_points(start_point, end_point):
     elif emotion == 'anger':
         num_points = 2
     elif emotion == 'sadness':
-        num_points = 12
+        num_points = 8
     t_values = np.linspace(0, 1, num_points)
 
     # calculate trajectory points
@@ -146,7 +146,7 @@ def calculate_trajectory_points(start_point, end_point):
     if emotion == 'happiness':
         for t in t_values:
             displacement = segment_length * t
-            perpendicular_displacement = (segment_length / (1.3 * np.pi)) * np.sin(2 * np.pi * t)
+            perpendicular_displacement = (segment_length / (2 * np.pi)) * np.sin(2 * np.pi * t)
 
             x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
             trajectory_points.append((x, y))
@@ -162,9 +162,11 @@ def calculate_trajectory_points(start_point, end_point):
             angular_displacement *= -1
 
     if emotion == 'sadness':
+        freq = 2
+        amp = 2
         for t in t_values:
             displacement = segment_length * t
-            perpendicular_displacement = (segment_length / (2.5 * np.pi)) * np.sin(2 * np.pi * t)
+            perpendicular_displacement = (segment_length / (amp * np.pi)) * np.sin(freq * np.pi * t)
 
             x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
             trajectory_points.append((x, y))
@@ -189,7 +191,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoParam = aruco.DetectorParameters_create()
 
         # setup video capture
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         # Check if the webcam is opened correctly
         if not cap.isOpened():
             raise IOError("Cannot open webcam")
@@ -246,9 +248,9 @@ def main(screen_size=(100, 100), zmq_port=5556):
                     leader_orientation_draw = [float(coord) for coord in leader_orientation.split()]
                     follower_orientation_draw = [float(coord) for coord in follower_orientation.split()]
                     trajectory_start_point = np.array(
-                        [start_point[0] + 40 * follower_orientation_draw[0], start_point[1] + 40 * follower_orientation_draw[1]])
+                        [start_point[0] + 10 * follower_orientation_draw[0], start_point[1] + 10 * follower_orientation_draw[1]])
                     trajectory_end_point = np.array(
-                        [end_point[0] - 50 * leader_orientation_draw[0], end_point[1] - 50 * leader_orientation_draw[1]])
+                        [end_point[0] - 30 * leader_orientation_draw[0], end_point[1] - 30 * leader_orientation_draw[1]])
 
                     dx = end_point[0] - start_point[0]
                     dy = end_point[1] - start_point[1]

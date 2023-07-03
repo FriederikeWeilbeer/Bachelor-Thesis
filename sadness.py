@@ -11,7 +11,7 @@ port_follower = 36965
 ip_addr = '192.168.188.62'
 simulation = False
 
-TURN_SPEED = 90
+TURN_SPEED = 50
 ROBOT_SPEED = 150
 CATCH_UP_SPEED = 200
 
@@ -30,7 +30,7 @@ def setup_zmq():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def calculate_sadness_trajectory(start_point, end_point, num_points, point_deque):
+def calculate_sadness_trajectory(start_point, end_point, num_points, point_deque, amp, freq):
     start_point = np.array(start_point)
     end_point = np.array(end_point)
 
@@ -47,13 +47,10 @@ def calculate_sadness_trajectory(start_point, end_point, num_points, point_deque
     # parameter values along the trajectory
     t_values = np.linspace(0, 1, num_points)
 
-    freq = (segment_length / (2.5 * np.pi))
-    amp = 2
-
     # calculate trajectory points
     for t in t_values:
         displacement = segment_length * t
-        perpendicular_displacement = amp * np.sin(freq * np.pi * t)
+        perpendicular_displacement = (segment_length / (amp * np.pi)) * np.sin(freq * np.pi * t)
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
@@ -88,7 +85,7 @@ def catch_up(ox, oy, xf, yf, x, y):
         return
 
 
-def follow_trajectory(ox, oy, xf, yf, points):
+def follow_trajectory(ox, oy, xf, yf, points, speed):
     # get the first point in the deque
     x, y = points[0]
 
@@ -109,15 +106,15 @@ def follow_trajectory(ox, oy, xf, yf, points):
 
     # turn left when point on the left side of the robot
     if angle_degrees > 15 and len(points) > 0:
-        set_robot_speed(robot, 20, ROBOT_SPEED)
+        set_robot_speed(robot, 20, speed)
 
     # turn right when point on the right side of the robot
     elif angle_degrees < -15 and len(points) > 0:
-        set_robot_speed(robot, ROBOT_SPEED, 20)
+        set_robot_speed(robot, speed, 20)
 
     # go straight when point in front of the robot
     elif abs(dx) > 15 or abs(dy) > 15 and len(points) > 0:
-        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
+        set_robot_speed(robot, speed, speed)
 
     # when point reached, remove it from the deque
     if abs(dx) < 15 and abs(dy) < 15 and len(points) > 0:
@@ -197,6 +194,7 @@ def main(sim, ip, port):
                     dx = leader_x - follower_x
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
+                    print('distance: ', distance)
 
                     trajectory_start_point = np.array([follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
                     trajectory_end_point = np.array([leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
@@ -210,12 +208,33 @@ def main(sim, ip, port):
 
                     # check if the point deque is empty
                     elif len(points) == 0 and distance < 200:
+                        if distance < 80:
+                            freq = 2
+                            amp = 1
+                            num_points = 4
+                        elif distance < 100:
+                            freq = 2
+                            amp = 1.3
+                            num_points = 6
+                        elif distance < 120:
+                            freq = 2
+                            amp = 2
+                            num_points = 8
                         # calculate frequency and amplitude of the happiness trajectory
-                        points = calculate_sadness_trajectory(trajectory_start_point, trajectory_end_point, 6, points)
+                        points = calculate_sadness_trajectory(trajectory_start_point, trajectory_end_point, num_points, points, amp, freq)
 
                     elif len(points) > 0 and distance < 200:
+                        # set the robots speed
+                        if distance < 80:
+                            speed = 80
+                        elif distance < 100:
+                            speed = 100
+                        elif distance < 120:
+                            speed = 120
+                        else:
+                            speed = 150
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
-                                                   follower_y, points)
+                                                   follower_y, points, speed)
 
             except zmq.Again:
                 pass
