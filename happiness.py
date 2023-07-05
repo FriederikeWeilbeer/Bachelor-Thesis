@@ -13,7 +13,7 @@ ip_addr = '192.168.188.62'
 simulation = False
 
 TURN_SPEED = 100
-CATCH_UP_SPEED = 300
+CATCH_UP_SPEED = 400
 
 
 # thread to handle zmq messages
@@ -30,11 +30,8 @@ def setup_zmq():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def happiness_one(start_point, end_point,  point_deque):
+def happiness_traj(start_point, end_point, point_deque):
     num_points = 6
-
-    speed = 300
-    curve_speed = 0
 
     start_point = np.array(start_point)
     end_point = np.array(end_point)
@@ -43,8 +40,10 @@ def happiness_one(start_point, end_point,  point_deque):
     segment_direction = end_point - start_point
     segment_length = np.linalg.norm(segment_direction)
 
-    amp = segment_length / 80
-    print('amp: ', amp)
+    if segment_length < 80:
+        amp = segment_length / np.pi
+    else:
+        amp = segment_length / (2 * np.pi)
     freq = 2
     # normalize segment direction
     normalized_direction = segment_direction / segment_length
@@ -58,88 +57,12 @@ def happiness_one(start_point, end_point,  point_deque):
     # calculate trajectory points
     for t in t_values:
         displacement = segment_length * t
-        perpendicular_displacement = (segment_length / (amp * np.pi)) * np.sin(freq * np.pi * t)
+        perpendicular_displacement = amp * np.sin(freq * np.pi * t)
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
 
-    # print(point_deque)
-    return point_deque, speed, curve_speed
-
-
-def happiness_two(start_point, end_point,  point_deque):
-    num_points = 6
-
-    speed = 250
-    curve_speed = 20
-
-    start_point = np.array(start_point)
-    end_point = np.array(end_point)
-
-    # segment direction and length
-    segment_direction = end_point - start_point
-    segment_length = np.linalg.norm(segment_direction)
-
-    amp = segment_length / 90
-    print('amp: ', amp)
-    freq = 2
-    # normalize segment direction
-    normalized_direction = segment_direction / segment_length
-
-    # perpendicular direction to the segment
-    perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
-
-    # parameter values along the trajectory
-    t_values = np.linspace(0, 1, num_points)
-
-    # calculate trajectory points
-    for t in t_values:
-        displacement = segment_length * t
-        perpendicular_displacement = (segment_length / (amp * np.pi)) * np.sin(freq * np.pi * t)
-
-        x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
-        point_deque.append((x, y))
-
-    # print(point_deque)
-    return point_deque, speed, curve_speed
-
-
-def happiness_three(start_point, end_point,  point_deque):
-    num_points = 6
-    freq = 2
-
-    speed = 200
-    curve_speed = 10
-
-    start_point = np.array(start_point)
-    end_point = np.array(end_point)
-
-    # segment direction and length
-    segment_direction = end_point - start_point
-    segment_length = np.linalg.norm(segment_direction)
-
-    amp = segment_length / 100
-    print('amp: ', amp)
-
-    # normalize segment direction
-    normalized_direction = segment_direction / segment_length
-
-    # perpendicular direction to the segment
-    perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
-
-    # parameter values along the trajectory
-    t_values = np.linspace(0, 1, num_points)
-
-    # calculate trajectory points
-    for t in t_values:
-        displacement = segment_length * t
-        perpendicular_displacement = (segment_length / (amp * np.pi)) * np.sin(freq * np.pi * t)
-
-        x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
-        point_deque.append((x, y))
-
-    # print(point_deque)
-    return point_deque, speed, curve_speed
+    return point_deque
 
 
 def catch_up(ox, oy, xf, yf, x, y):
@@ -198,7 +121,7 @@ def follow_trajectory(ox, oy, xf, yf, points, speed, curve_speed):
         set_robot_speed(robot, speed, speed)
 
     # when point reached, remove it from the deque
-    if abs(dx) < 20 and abs(dy) < 20 and len(points) > 0:
+    if abs(dx) < 15 and abs(dy) < 15 and len(points) > 0:
         points.popleft()
         if len(points) > 0:
             x, y = points[0]
@@ -279,8 +202,10 @@ def main(sim, ip, port):
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
-                    trajectory_start_point = np.array([follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
-                    trajectory_end_point = np.array([leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
+                    trajectory_start_point = np.array(
+                        [follower_x + 20 * follower_orientation_x, follower_y + 20 * follower_orientation_y])
+                    trajectory_end_point = np.array(
+                        [leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
 
                     # catch up when distance gets too big
                     if distance < 70:
@@ -292,25 +217,29 @@ def main(sim, ip, port):
                         # empty points
                         points.clear()
                         # raise caught_up flag once the distance is below 90
-                        if distance < 100:
+                        if distance < 80:
                             caught_up = True
+                            set_robot_speed(robot, 400, -400)
+                            time.sleep(2.4)
+                            stop_robot(robot)
 
-                    elif distance > 200:
+                    elif distance > 230:
                         caught_up = False
 
                     # check if the point deque is empty
                     elif len(points) == 0 and caught_up:
                         x = random.randint(1, 3)
                         print(x)
+                        points = happiness_traj(trajectory_start_point, trajectory_end_point, points)
                         if x == 1:
-                            points, speed, curve_speed = happiness_one(trajectory_start_point, trajectory_end_point,
-                                                                       points)
+                            speed = 300
+                            curve_speed = 0
                         elif x == 2:
-                            points, speed, curve_speed = happiness_two(trajectory_start_point, trajectory_end_point,
-                                                                       points)
+                            speed = 280
+                            curve_speed = 20
                         elif x == 3:
-                            points, speed, curve_speed = happiness_three(trajectory_start_point, trajectory_end_point,
-                                                                       points)
+                            speed = 220
+                            curve_speed = 10
 
                     elif len(points) > 0 and caught_up:
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,

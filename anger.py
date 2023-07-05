@@ -2,6 +2,7 @@
 import time
 import numpy as np
 import zmq
+import random
 from thymiodirect import Connection
 from thymiodirect import Thymio
 from collections import deque
@@ -13,8 +14,8 @@ simulation = False
 
 ROBOT_SPEED = 300
 CATCH_UP_SPEED = 400
-TURN_SPEED = 150
 SLOW_TURN = 60
+TURN_SPEED = 150
 
 
 # thread to handle zmq messages
@@ -31,13 +32,16 @@ def setup_zmq():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def calculate_anger_trajectory(start_point, end_point, point_deque):
+def zig_zag(start_point, end_point, point_deque, num_points):
     start_point = np.array(start_point)
     end_point = np.array(end_point)
 
     # segment direction and length
     segment_direction = end_point - start_point
     segment_length = np.linalg.norm(segment_direction)
+    print(segment_length)
+    if segment_length > 120:
+        num_points = 6
 
     # normalize segment direction
     normalized_direction = segment_direction / segment_length
@@ -46,19 +50,45 @@ def calculate_anger_trajectory(start_point, end_point, point_deque):
     perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
 
     # parameter values along the trajectory
-    t_values = [0.7, 1]
+    zig_zag_distance = segment_length / (num_points - 1)
+    t = 1
 
     # calculate trajectory points
-    angular_displacement = 40
-    for t in t_values:
-        displacement = segment_length * t
+    for i in range(2, num_points):
+        # displacement = zig_zag_distance * (i % 2) * 2 - zig_zag_distance
+        displacement = 20 * t
 
-        x, y = start_point + displacement * normalized_direction + angular_displacement * perpendicular_direction
+        x, y = start_point + normalized_direction * (zig_zag_distance * i) + displacement * perpendicular_direction
         point_deque.append((x, y))
-
-        angular_displacement *= -1
+        t *= -1
 
     return point_deque
+
+
+def jostle(ox, oy, xf, yf, x, y):
+    # vector to destination
+    dx = x - xf
+    dy = y - yf
+
+    # calculate the angle between the two vectors
+    angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
+    angle_degrees = np.rad2deg(angle_radians)
+
+    # Normalize the angle between -180 and 180 degrees
+    angle_degrees = (angle_degrees + 180) % 360 - 180
+    # print('angle', angle_degrees)
+
+    # turn left when point on the left side of the robot
+    if angle_degrees > 10:
+        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+
+    # turn right when point on the right side of the robot
+    elif angle_degrees < -10:
+        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
+
+    else:
+        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
+        return
 
 
 def catch_up(ox, oy, xf, yf, x, y):
@@ -107,16 +137,16 @@ def follow_trajectory(ox, oy, xf, yf, points):
         return points
 
     # turn left when point on the left side of the robot
-    if angle_degrees > 20 and len(points) > 0:
+    if angle_degrees > 15 and len(points) > 0:
         set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
 
     # turn right when point on the right side of the robot
-    elif angle_degrees < -20 and len(points) > 0:
+    elif angle_degrees < -15 and len(points) > 0:
         set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     # go straight when point in front of the robot
-    elif abs(dx) > 20 or abs(dy) > 20 and len(points) > 0:
-        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
+    elif abs(dx) > 15 or abs(dy) > 15 and len(points) > 0:
+        set_robot_speed(robot, CATCH_UP_SPEED, CATCH_UP_SPEED)
 
     # when point reached, remove it from the deque
     if abs(dx) < 15 and abs(dy) < 15 and len(points) > 0:
@@ -164,6 +194,8 @@ def main(sim, ip, port):
         setup_zmq()
         # initialize variables
         robot_state = 'off'
+        count = 0
+        mode = 1
 
         print('ready')
 
@@ -200,25 +232,38 @@ def main(sim, ip, port):
                     trajectory_start_point = np.array(
                         [follower_x + 40 * follower_orientation_x, follower_y + 40 * follower_orientation_y])
                     trajectory_end_point = np.array(
-                        [leader_x - 50 * leader_orientation_x, leader_y - 50 * leader_orientation_y])
+                        [leader_x - 45 * leader_orientation_x, leader_y - 45 * leader_orientation_y])
+
+                    if count > 40:
+                        mode = random.randint(1, 3)
+                        print(mode)
+                        count = 0
+                        points.clear()
 
                     # stop when distance gets too small
-                    if distance < 30:
+                    if distance < 35:
                         stop_robot(robot)
-                    # catch up when distance gets too big
-                    if distance > 250:
+
+                    if mode == 1:
                         catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
                                  trajectory_end_point[0], trajectory_end_point[1])
+                        count += 1
 
-                    elif distance < 90:
-                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y,trajectory_end_point[0], trajectory_end_point[1])
-                    # check if the point deque is empty
-                    elif len(points) == 0 and distance < 250:
-                        points = calculate_anger_trajectory(trajectory_start_point, trajectory_end_point, points)
+                    if mode == 2:
+                        jostle(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
+                               trajectory_end_point[0], trajectory_end_point[1])
+                        count += 1
 
-                    elif len(points) > 0 and distance < 250:
+                    if mode == 3:
+                        trajectory_end_point = np.array(
+                            [leader_x - 10 * leader_orientation_x, leader_y - 10 * leader_orientation_y])
+
+                        if len(points) == 0:
+                            points = zig_zag(trajectory_start_point, trajectory_end_point, points, 4)
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
                                                    follower_y, points)
+
+                    count += 1
 
             except zmq.Again:
                 pass

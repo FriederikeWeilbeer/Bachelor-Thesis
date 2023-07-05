@@ -12,9 +12,9 @@ leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
 illustration_mode_enabled = True
-#emotion = 'anger'
-emotion = 'happiness'
-#emotion = 'sadness'
+emotion = 'anger'
+# emotion = 'happiness'
+# emotion = 'sadness'
 
 
 def setUpZMQ(port):
@@ -136,9 +136,9 @@ def calculate_trajectory_points(start_point, end_point):
     if emotion == 'happiness':
         num_points = 6
     elif emotion == 'anger':
-        num_points = 2
+        num_points = 4
     elif emotion == 'sadness':
-        num_points = 8
+        num_points = 10
     t_values = np.linspace(0, 1, num_points)
 
     # calculate trajectory points
@@ -146,27 +146,30 @@ def calculate_trajectory_points(start_point, end_point):
     if emotion == 'happiness':
         for t in t_values:
             displacement = segment_length * t
-            perpendicular_displacement = (segment_length / (2 * np.pi)) * np.sin(2 * np.pi * t)
+            perpendicular_displacement = (segment_length / (1 * np.pi)) * np.sin(2 * np.pi * t)
 
             x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
             trajectory_points.append((x, y))
 
     if emotion == 'anger':
-        t_values = [0.7, 1]
-        angular_displacement = 50
-        for t in t_values:
-            displacement = segment_length * t
-            x, y = start_point + displacement * normalized_direction + angular_displacement * perpendicular_direction
+        # parameter values along the trajectory
+        zig_zag_distance = segment_length / (num_points - 1)
+        t = 1
+
+        # calculate trajectory points
+        for i in range(2, num_points):
+            # displacement = zig_zag_distance * (i % 2) * 2 - zig_zag_distance
+            displacement = 25 * t
+
+            x, y = start_point + normalized_direction * (zig_zag_distance * i) + displacement * perpendicular_direction
             trajectory_points.append((x, y))
-
-            angular_displacement *= -1
-
+            t *= -1
     if emotion == 'sadness':
-        freq = 2
-        amp = 2
+        freq = 4
+        amp = 20
         for t in t_values:
             displacement = segment_length * t
-            perpendicular_displacement = (segment_length / (amp * np.pi)) * np.sin(freq * np.pi * t)
+            perpendicular_displacement = amp * np.sin(freq * np.pi * t)
 
             x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
             trajectory_points.append((x, y))
