@@ -12,10 +12,12 @@ port_follower = 36965
 ip_addr = '192.168.188.62'
 simulation = False
 
-ROBOT_SPEED = 300
-CATCH_UP_SPEED = 400
+ROBOT_SPEED = 350
+CATCH_UP_SPEED = 450
 SLOW_TURN = 60
 TURN_SPEED = 150
+SPEED1 = 100
+SPEED2 = 400
 
 
 # thread to handle zmq messages
@@ -117,6 +119,41 @@ def catch_up(ox, oy, xf, yf, x, y):
         return
 
 
+def anger3(ox, oy, xf, yf, x, y, speed):
+    # vector to destination
+    dx = x - xf
+    dy = y - yf
+
+    # alternate between SPEED1 and SPEED2
+    if speed == SPEED1:
+        speed = SPEED2
+    else:
+        speed = SPEED1
+
+    # calculate the angle between the two vectors
+    angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
+    angle_degrees = np.rad2deg(angle_radians)
+
+    # Normalize the angle between -180 and 180 degrees
+    angle_degrees = (angle_degrees + 180) % 360 - 180
+    # print('angle', angle_degrees)
+
+    # turn left when point on the left side of the robot
+    if angle_degrees > 15:
+        set_robot_speed(robot, -TURN_SPEED, TURN_SPEED)
+
+    # turn right when point on the right side of the robot
+    elif angle_degrees < -15:
+        set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
+
+    else:
+        set_robot_speed(robot, speed, speed)
+        return speed
+
+    # default return value
+    return speed
+
+
 def follow_trajectory(ox, oy, xf, yf, points):
     # get the first point in the deque
     x, y = points[0]
@@ -196,6 +233,7 @@ def main(sim, ip, port):
         robot_state = 'off'
         count = 0
         mode = 1
+        speed = SPEED1
 
         print('ready')
 
@@ -232,7 +270,7 @@ def main(sim, ip, port):
                     trajectory_start_point = np.array(
                         [follower_x + 40 * follower_orientation_x, follower_y + 40 * follower_orientation_y])
                     trajectory_end_point = np.array(
-                        [leader_x - 45 * leader_orientation_x, leader_y - 45 * leader_orientation_y])
+                        [leader_x - 40 * leader_orientation_x, leader_y - 40 * leader_orientation_y])
 
                     if count > 40:
                         mode = random.randint(1, 3)
@@ -255,13 +293,16 @@ def main(sim, ip, port):
                         count += 1
 
                     if mode == 3:
-                        trajectory_end_point = np.array(
+                        '''trajectory_end_point = np.array(
                             [leader_x - 10 * leader_orientation_x, leader_y - 10 * leader_orientation_y])
 
                         if len(points) == 0:
                             points = zig_zag(trajectory_start_point, trajectory_end_point, points, 4)
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
-                                                   follower_y, points)
+                                                   follower_y, points)'''
+                        speed = anger3(follower_orientation_x, follower_orientation_y, follower_x,
+                                                  follower_y,
+                                                  trajectory_end_point[0], trajectory_end_point[1], speed)
 
                     count += 1
 

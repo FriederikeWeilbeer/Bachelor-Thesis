@@ -43,14 +43,13 @@ def stop_robot(robot):
     """Set both wheel robot_speeds to 0 to stop the robot"""
     robot['motor.left.target'] = 0
     robot['motor.right.target'] = 0
-    # time.sleep(0.1)
 
 
+# controls the robots speed
 def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
-    # time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -74,7 +73,7 @@ def main(sim, ip, port):
         robot_state = 'off'  # State of the robot (on/off)
         robot_action = 'stop'  # Action of the robot
         robot_action_cur = ''  # Current action of the robot
-        new_command_received = False  # Flag to indicate a new comman
+        new_command_received = False  # Flag to indicate a new command
 
         action_map = {
             'straight': lambda: set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED),

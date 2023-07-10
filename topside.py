@@ -11,7 +11,7 @@ import numpy as np
 leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
-illustration_mode_enabled = True
+illustration_mode_enabled = False
 emotion = 'anger'
 # emotion = 'happiness'
 # emotion = 'sadness'
@@ -194,7 +194,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoParam = aruco.DetectorParameters_create()
 
         # setup video capture
-        cap = cv2.VideoCapture(0)
+        cap = cv2.VideoCapture(2)
         # Check if the webcam is opened correctly
         if not cap.isOpened():
             raise IOError("Cannot open webcam")

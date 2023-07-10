@@ -11,6 +11,7 @@ ip_addr = '192.168.188.62'
 simulation = False
 
 TURN_SPEED = 100
+ROBOT_SPEED = 250
 
 
 # thread to handle zmq messages
@@ -27,12 +28,10 @@ def setup_zmq():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def catch_up(ox, oy, xf, yf, x, y, speed1, speed2):
+def follow(ox, oy, xf, yf, x, y):
     # vector to destination
     dx = x - xf
     dy = y - yf
-
-    speed1, speed2 = speed2, speed1
 
     # calculate the angle between the two vectors
     angle_radians = np.arctan2(oy, ox) - np.arctan2(dy, dx)
@@ -51,11 +50,9 @@ def catch_up(ox, oy, xf, yf, x, y, speed1, speed2):
         set_robot_speed(robot, TURN_SPEED, -TURN_SPEED)
 
     else:
-        set_robot_speed(robot, speed1, speed2)
-        return speed1, speed2
+        set_robot_speed(robot, ROBOT_SPEED, ROBOT_SPEED)
 
-    # default return value
-    return speed1, speed2
+    return
 
 
 # Robot controller
@@ -92,10 +89,6 @@ def main(sim, ip, port):
 
         # initialize variables
         robot_state = 'off'
-        speed1 = 400
-        speed2 = 100
-
-        spin_done = False
 
         print('ready')
 
@@ -127,28 +120,17 @@ def main(sim, ip, port):
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
-                    trajectory_start_point = np.array(
-                        [follower_x + 20 * follower_orientation_x, follower_y + 20 * follower_orientation_y])
                     trajectory_end_point = np.array(
-                        [leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
+                        [leader_x - 60 * leader_orientation_x, leader_y - 60 * leader_orientation_y])
 
                     # catch up when distance gets too big
-                    if distance < 70:
+                    if distance < 80:
                         stop_robot(robot)
-                    if distance > 100 and spin_done:
-                        spin_done = False
 
                     else:
-                        speed1, speed2 = catch_up(follower_orientation_x, follower_orientation_y, follower_x,
-                                                  follower_y,
-                                                  trajectory_end_point[0], trajectory_end_point[1], speed1, speed2)
-
-                        # raise caught_up flag once the distance is below 90
-                        if distance < 80 and not spin_done:
-                            set_robot_speed(robot, 400, -400)
-                            time.sleep(2.4)
-                            stop_robot(robot)
-                            spin_done = True
+                        follow(follower_orientation_x, follower_orientation_y, follower_x,
+                               follower_y,
+                               trajectory_end_point[0], trajectory_end_point[1])
 
             except zmq.Again:
                 pass

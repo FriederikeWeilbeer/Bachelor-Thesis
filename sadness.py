@@ -12,7 +12,7 @@ ip_addr = '192.168.188.62'
 simulation = False
 
 TURN_SPEED = 80
-CATCH_UP_SPEED = 300
+CATCH_UP_SPEED = 350
 
 
 # thread to handle zmq messages
@@ -83,7 +83,7 @@ def catch_up(ox, oy, xf, yf, x, y):
 
     else:
         set_robot_speed(robot, CATCH_UP_SPEED, CATCH_UP_SPEED)
-        return
+    return
 
 
 def follow_trajectory(ox, oy, xf, yf, points, speed, curve_speed):
@@ -141,45 +141,44 @@ def set_robot_speed(robot, left_robot_speed, right_robot_speed):
 
 
 def main(sim, ip, port):
-    """main loop of the program"""
+    """Main loop of the program"""
     try:
         # Robot Connection setup
         if sim:
             th = Thymio(use_tcp=True, host=ip, tcp_port=port,
-                        on_connect=lambda node_id: print(f' Thymio {node_id} is connected'))
+                        on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
         else:
             port = Connection.serial_default_port()
             th = Thymio(serial_port=port,
                         on_connect=lambda node_id: print(f'Thymio {node_id} is connected'))
+
         global robot
         th.connect()  # Connect to the robot
         robot = th[th.first_node()]  # Create an object to control the robot
         time.sleep(5)  # Delay to allow robot initialization of all variables
 
-        # initialize deque for points
+        # Initialize deque for points
         points = deque()
 
         # ZMQ setup
         setup_zmq()
-        # initialize variables
+
+        # Initialize variables
         robot_state = 'off'
-
-        # caught_up flag
         caught_up = False
-
         print('ready')
 
-        # Main loop
         while True:
             time.sleep(0.1)
+
             # Receive and handle the message from the ZMQ server
             try:
                 message = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
                 topic = message[0]
-                # print('message: ', message)
-                # messages for all robots
+
                 if topic == '42':
                     points.clear()
+
                     if message[1] == 'quit':
                         robot_state = 'off'
                         stop_robot(robot)
@@ -189,52 +188,47 @@ def main(sim, ip, port):
                     elif message[1] == 'stop':
                         stop_robot(robot)
 
-                # messages for this particular robot
                 elif topic == '2' and robot_state == 'on':
                     leader_x, leader_y, leader_orientation_x, leader_orientation_y, follower_x, follower_y, follower_orientation_x, follower_orientation_y = map(
                         float, message[1:])
 
-                    # distance between the two robots
                     dx = leader_x - follower_x
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
-                    trajectory_start_point = np.array([follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
-                    trajectory_end_point = np.array([leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
+                    trajectory_start_point = np.array(
+                        [follower_x + 10 * follower_orientation_x, follower_y + 10 * follower_orientation_y])
+                    trajectory_end_point = np.array(
+                        [leader_x - 30 * leader_orientation_x, leader_y - 30 * leader_orientation_y])
 
-                    # catch up when distance gets too big
                     if distance < 50:
                         stop_robot(robot)
 
                     elif not caught_up:
-                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y, trajectory_end_point[0], trajectory_end_point[1])
-                        # empty points
+                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
+                                 trajectory_end_point[0], trajectory_end_point[1])
                         points.clear()
-                        # raise caught up flag once the distance is below 80
+
                         if distance < 100:
                             caught_up = True
                     elif distance > 200:
                         caught_up = False
 
-                    # check if the point deque is empty
                     elif len(points) == 0 and distance < 200:
                         if distance < 100:
                             freq = 2
                             num_points = 4
-                        elif distance < 100:
-                            freq = 2
-                            num_points = 10
-                        elif distance < 180:
+                        elif distance < 160:
                             freq = 2
                             num_points = 6
                         else:
                             freq = 4
                             num_points = 6
-                        # calculate frequency and amplitude of the happiness trajectory
-                        points = calculate_sadness_trajectory(trajectory_start_point, trajectory_end_point, num_points, points, freq)
+
+                        points = calculate_sadness_trajectory(trajectory_start_point, trajectory_end_point, num_points,
+                                                              points, freq)
 
                     elif len(points) > 0 and distance < 200:
-                        # set the robots speed
                         if distance < 100:
                             speed = 220
                             curve_speed = 20
@@ -244,6 +238,7 @@ def main(sim, ip, port):
                         else:
                             speed = 180
                             curve_speed = 40
+
                         points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
                                                    follower_y, points, speed, curve_speed)
 
