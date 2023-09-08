@@ -11,10 +11,10 @@ import numpy as np
 leader_id = 1
 follower_id = 2
 simulation_mode_enabled = False
-illustration_mode_enabled = False
+illustration_mode_enabled = True
 emotion = 'anger'
-# emotion = 'happiness'
-# emotion = 'sadness'
+#emotion = 'happiness'
+#emotion = 'sadness'
 
 
 def setUpZMQ(port):
@@ -134,11 +134,11 @@ def calculate_trajectory_points(start_point, end_point):
 
     # parameter values along the trajectory
     if emotion == 'happiness':
-        num_points = 6
+        num_points = 12
     elif emotion == 'anger':
-        num_points = 4
+        num_points = 6
     elif emotion == 'sadness':
-        num_points = 10
+        num_points = 12
     t_values = np.linspace(0, 1, num_points)
 
     # calculate trajectory points
@@ -165,7 +165,7 @@ def calculate_trajectory_points(start_point, end_point):
             trajectory_points.append((x, y))
             t *= -1
     if emotion == 'sadness':
-        freq = 4
+        freq = 2
         amp = 20
         for t in t_values:
             displacement = segment_length * t
@@ -194,7 +194,7 @@ def main(screen_size=(100, 100), zmq_port=5556):
         arucoParam = aruco.DetectorParameters_create()
 
         # setup video capture
-        cap = cv2.VideoCapture(2)
+        cap = cv2.VideoCapture(0)
         # Check if the webcam is opened correctly
         if not cap.isOpened():
             raise IOError("Cannot open webcam")

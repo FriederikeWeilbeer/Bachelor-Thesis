@@ -41,7 +41,7 @@ def zig_zag(start_point, end_point, point_deque, num_points):
     # segment direction and length
     segment_direction = end_point - start_point
     segment_length = np.linalg.norm(segment_direction)
-    print(segment_length)
+
     if segment_length > 120:
         num_points = 6
 

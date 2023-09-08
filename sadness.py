@@ -51,7 +51,7 @@ def calculate_sadness_trajectory(start_point, end_point, num_points, point_deque
     # calculate trajectory points
     for t in t_values:
         displacement = segment_length * t
-        perpendicular_displacement = amp * np.sin(freq * np.pi * t)
+        perpendicular_displacement = amp * np.sin(freq * t)
 
         x, y = start_point + displacement * normalized_direction + perpendicular_displacement * perpendicular_direction
         point_deque.append((x, y))
@@ -216,13 +216,13 @@ def main(sim, ip, port):
 
                     elif len(points) == 0 and distance < 200:
                         if distance < 100:
-                            freq = 2
+                            freq = 2 * np.pi
                             num_points = 4
                         elif distance < 160:
-                            freq = 2
+                            freq = 2 * np.pi
                             num_points = 6
                         else:
-                            freq = 4
+                            freq = 4 * np.pi
                             num_points = 6
 
                         points = calculate_sadness_trajectory(trajectory_start_point, trajectory_end_point, num_points,
