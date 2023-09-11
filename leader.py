@@ -5,8 +5,9 @@ import multiprocessing
 from thymiodirect import Connection
 from thymiodirect import Thymio
 
-port_leader = 46317
+port_leader = 34089
 ip_addr = 'localhost'
+# ip_addr = '192.168.188.62'
 simulation = True
 
 ROBOT_SPEED = 200
@@ -22,7 +23,7 @@ def setUpZMQ(queue):
     context = zmq.Context()
     socket = context.socket(zmq.SUB)
     # socket.connect(f"tcp://192.168.188.62:{port}")
-    socket.connect(f"tcp://localhost:{port}")
+    socket.connect(f"tcp://{ip_addr}:{port}")
 
     socket.setsockopt_string(zmq.SUBSCRIBE, '42')  # all robots
     socket.setsockopt_string(zmq.SUBSCRIBE, '1')  # leader
@@ -31,6 +32,7 @@ def setUpZMQ(queue):
         # Receive and handle the message from the ZMQ server
         try:
             topic, data = socket.recv(flags=zmq.NOBLOCK).decode('utf-8').split()
+#            print('message: ', topic, data)
             queue.put((topic, data))
         except zmq.Again:
             pass
@@ -43,11 +45,11 @@ def stop_robot(robot):
     robot['motor.right.target'] = 0
 
 
+# controls the robots speed
 def set_robot_speed(robot, left_robot_speed, right_robot_speed):
     """Set both wheel robot_speeds to the given values"""
     robot['motor.left.target'] = left_robot_speed
     robot['motor.right.target'] = right_robot_speed
-    time.sleep(0.1)
 
 
 def main(sim, ip, port):
@@ -81,6 +83,8 @@ def main(sim, ip, port):
             'right': lambda: set_robot_speed(robot, ROBOT_SPEED, TURN_SPEED),
             'spotleft': lambda: set_robot_speed(robot, -ROBOT_SPEED, ROBOT_SPEED),
             'spotright': lambda: set_robot_speed(robot, ROBOT_SPEED, -ROBOT_SPEED),
+            'tightleft': lambda: set_robot_speed(robot, 0, ROBOT_SPEED),
+            'tightright': lambda: set_robot_speed(robot, ROBOT_SPEED, 0),
         }
 
         # start ZMQ handling in a separate process
@@ -92,6 +96,7 @@ def main(sim, ip, port):
 
         # Main loop
         while True:
+            time.sleep(0.1)
 
             # handle messages from ZMQ
             while not message_queue.empty():
@@ -100,6 +105,9 @@ def main(sim, ip, port):
 
                 if topic == '42':  # Handle the message for all robots
                     robot_state = data
+                    if data == 'stop':
+                        stop_robot(robot)
+                        robot_action = 'stop'
                 elif topic == str(th.first_node()):  # Handle the message for this robot
                     robot_action = data
                 else:
@@ -123,10 +131,11 @@ def main(sim, ip, port):
                 action_map.get(robot_action, lambda: None)()
                 robot_action_cur = robot_action
 
-
-    except ConnectionError:
-        print("Connection Error")
-    except Exception as err:
+    except (IndexError, ConnectionError) as err:
+        if isinstance(err, IndexError):
+            pass
+        elif isinstance(err, ConnectionError):
+            print("Connection Error")
         # Stop robot
         stop_robot(robot)
         print(err)
@@ -139,3 +148,5 @@ def main(sim, ip, port):
 if __name__ == '__main__':
     print('Starting Leader ... ')
     main(sim=simulation, ip=ip_addr, port=port_leader)
+
+
