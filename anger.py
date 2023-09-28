@@ -34,39 +34,6 @@ def setup_zmq():
     socket.setsockopt_string(zmq.SUBSCRIBE, '2')  # follower
 
 
-def zig_zag(start_point, end_point, point_deque, num_points):
-    start_point = np.array(start_point)
-    end_point = np.array(end_point)
-
-    # segment direction and length
-    segment_direction = end_point - start_point
-    segment_length = np.linalg.norm(segment_direction)
-
-    if segment_length > 120:
-        num_points = 6
-
-    # normalize segment direction
-    normalized_direction = segment_direction / segment_length
-
-    # perpendicular direction to the segment
-    perpendicular_direction = np.array([-normalized_direction[1], normalized_direction[0]])
-
-    # parameter values along the trajectory
-    zig_zag_distance = segment_length / (num_points - 1)
-    t = 1
-
-    # calculate trajectory points
-    for i in range(2, num_points):
-        # displacement = zig_zag_distance * (i % 2) * 2 - zig_zag_distance
-        displacement = 20 * t
-
-        x, y = start_point + normalized_direction * (zig_zag_distance * i) + displacement * perpendicular_direction
-        point_deque.append((x, y))
-        t *= -1
-
-    return point_deque
-
-
 def jostle(ox, oy, xf, yf, x, y):
     # vector to destination
     dx = x - xf
@@ -93,7 +60,7 @@ def jostle(ox, oy, xf, yf, x, y):
         return
 
 
-def catch_up(ox, oy, xf, yf, x, y):
+def tailgate(ox, oy, xf, yf, x, y):
     # vector to destination
     dx = x - xf
     dy = y - yf
@@ -119,7 +86,7 @@ def catch_up(ox, oy, xf, yf, x, y):
         return
 
 
-def anger3(ox, oy, xf, yf, x, y, speed):
+def push(ox, oy, xf, yf, x, y, speed):
     # vector to destination
     dx = x - xf
     dy = y - yf
@@ -267,8 +234,6 @@ def main(sim, ip, port):
                     dy = leader_y - follower_y
                     distance = np.sqrt(dx ** 2 + dy ** 2)
 
-                    trajectory_start_point = np.array(
-                        [follower_x + 40 * follower_orientation_x, follower_y + 40 * follower_orientation_y])
                     trajectory_end_point = np.array(
                         [leader_x - 40 * leader_orientation_x, leader_y - 40 * leader_orientation_y])
 
@@ -283,7 +248,7 @@ def main(sim, ip, port):
                         stop_robot(robot)
 
                     if mode == 1:
-                        catch_up(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
+                        tailgate(follower_orientation_x, follower_orientation_y, follower_x, follower_y,
                                  trajectory_end_point[0], trajectory_end_point[1])
                         count += 1
 
@@ -293,16 +258,9 @@ def main(sim, ip, port):
                         count += 1
 
                     if mode == 3:
-                        '''trajectory_end_point = np.array(
-                            [leader_x - 10 * leader_orientation_x, leader_y - 10 * leader_orientation_y])
-
-                        if len(points) == 0:
-                            points = zig_zag(trajectory_start_point, trajectory_end_point, points, 4)
-                        points = follow_trajectory(follower_orientation_x, follower_orientation_y, follower_x,
-                                                   follower_y, points)'''
-                        speed = anger3(follower_orientation_x, follower_orientation_y, follower_x,
-                                                  follower_y,
-                                                  trajectory_end_point[0], trajectory_end_point[1], speed)
+                        speed = push(follower_orientation_x, follower_orientation_y, follower_x,
+                                     follower_y,
+                                     trajectory_end_point[0], trajectory_end_point[1], speed)
 
                     count += 1
 
